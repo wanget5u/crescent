@@ -3,7 +3,7 @@ if (!(Test-Path -Path "bin")) { New-Item -ItemType Directory -Path "bin" | Out-N
 
 Write-Host "clang compile..." -ForegroundColor Cyan
 
-clang src/*.c -I./include -D_CRT_SECURE_NO_WARNINGS -Wall -Wextra -o bin/crescent.exe
+clang src/*.c -O3 -I./include -L./lib -lraylib -lwinmm -lgdi32 -luser32 -lshell32 -D_CRT_SECURE_NO_WARNINGS -Wall -Wextra -o bin/crescent.exe
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Build successful! Running..." -ForegroundColor Green
