@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "player.h"
+#include "game_camera.h"
 
 typedef enum {
     RUNNING,
@@ -11,6 +12,7 @@ typedef enum {
 typedef struct {
     GameState game_state;
     Player player;
+    GameCamera camera;
     f32 delta_time;
 } GameManager;
 

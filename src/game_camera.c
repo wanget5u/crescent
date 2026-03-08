@@ -1,0 +1,58 @@
+#include "game_camera.h"
+
+void camera_init(GameCamera* camera) {
+    camera -> rl_camera.position = (Vec3) {0.0f, 0.0f, 0.0f};
+    camera -> rl_camera.target = (Vec3){ 0.0f, 0.0f, 0.0f };
+    camera -> rl_camera.up = (Vec3) {0.0f, 1.0f, 0.0f};
+    camera -> rl_camera.fovy = CAMERA_FOV;
+    camera -> rl_camera.projection = CAMERA_PERSPECTIVE;
+    camera -> pitch = 0.0f;
+    camera -> yaw = 0.0f;
+}
+
+void camera_update(GameCamera* camera, Vec3* target_pos, f32 delta_time) {
+    (void) delta_time;
+    handle_cursor_visibility();
+    handle_camera_rotation(camera);
+    handle_camera_clamp(camera);
+    apply_camera_pos(camera, target_pos);
+}
+
+void handle_cursor_visibility() {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        DisableCursor();
+    }
+    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
+        EnableCursor();
+    }
+}
+
+void handle_camera_rotation(GameCamera* camera) {
+    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+        Vec2 mouse_delta = GetMouseDelta();
+        camera -> yaw -= mouse_delta.x * MOUSE_SENS;
+        camera -> pitch -= mouse_delta.y * MOUSE_SENS;
+    }
+}
+
+void handle_camera_zoom(GameCamera* camera) {
+    camera -> rl_camera.fovy = GetMouseWheelMove();
+}
+
+void handle_camera_clamp(GameCamera* camera) {
+    if (camera -> pitch > 1.5f) {
+        camera -> pitch = 1.5f;
+    }
+    if (camera -> pitch < -1.5f) {
+        camera -> pitch = -1.5f;
+    }
+}
+
+void apply_camera_pos(GameCamera* camera, Vec3* target_pos) {
+    camera -> rl_camera.position = *target_pos;
+    f32 x = cosf(camera -> pitch) * sinf(camera -> yaw);
+    f32 y = sinf(camera -> pitch);
+    f32 z = cosf(camera -> pitch) * cosf(camera -> yaw);
+    Vec3 view_dir = {x, y, z};
+    camera -> rl_camera.target = Vector3Add(camera -> rl_camera.position, view_dir);
+}

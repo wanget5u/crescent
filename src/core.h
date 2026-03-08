@@ -29,6 +29,15 @@ typedef int32_t b32;
 typedef Vector2 Vec2;
 typedef Vector3 Vec3;
 
-#define PLAYER_SPEED 800.0f
-#define PLAYER_ACC 10.0f
-#define PLAYER_COLOR WHITE
+#define TEXT_COLOR DARKGRAY
+#define BG_COLOR GRAY
+#define WIRE_COLOR LIGHTGRAY
+
+#define PLAYER_SPEED 5.0f
+#define PLAYER_ACC 15.0f
+#define PLAYER_COLOR RED
+
+#define CAMERA_FOV 70.0f;
+
+#define MOUSE_SENS 0.0025f;
+#define SCROLL_SPEED 4;
