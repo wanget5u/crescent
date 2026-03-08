@@ -10,8 +10,8 @@
 static void render_environment(GameManager* game_manager) {
     f32 spacing = 2.0f;
     i32 count = 100;
-    f32 snap_x = roundf(game_manager->player.position.x / spacing) * spacing;
-    f32 snap_z = roundf(game_manager->player.position.z / spacing) * spacing;
+    f32 snap_x = roundf(game_manager -> player.position.x / spacing) * spacing;
+    f32 snap_z = roundf(game_manager -> player.position.z / spacing) * spacing;
     rlPushMatrix();
         rlTranslatef(snap_x, 0.0f, snap_z);
         for (i32 x = -count / 2; x <= count / 2; x++) {
@@ -29,7 +29,8 @@ static void render_ui(GameManager* game_manager) {
 
 void game_manager_init(GameManager* game_manager) {
     game_manager -> game_state = RUNNING;
-    log_msg("initialised");
+    SetTraceLogLevel(LOG_WARNING);
+    log_msg("initialising");
     InitWindow(1280, 720, "Crescent");
     SetTargetFPS(10000);
     player_init(&game_manager -> player);

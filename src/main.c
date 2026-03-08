@@ -7,6 +7,7 @@
 void on_update(GameManager* game_manager);
 
 int main() {
+    log_msg("starting");
     GameManager game_manager;
     game_manager_init(&game_manager);
     on_update(&game_manager);
@@ -14,7 +15,7 @@ int main() {
 }
 
 void on_update(GameManager* game_manager) {
-    log_msg("looping");
+    log_msg("running");
     while (game_manager -> game_state == RUNNING && !WindowShouldClose()) {
         game_manager -> delta_time = GetFrameTime();
         game_manager_update(game_manager);
