@@ -8,6 +8,6 @@ uniform mat4 matModel;
 out vec3 fragWorldPos;
 
 void main() {
-    fragWorldPos = vertexPosition;
+    fragWorldPos = (matModel * vec4(vertexPosition, 1.0)).xyz; 
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }

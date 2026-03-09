@@ -6,8 +6,8 @@
 
 void on_update(GameManager* game_manager) {
     log_msg("running");
-    while (game_manager -> game_state == STATE_RUNNING && !WindowShouldClose()) {
-        game_manager -> delta_time = GetFrameTime();
+    while (game_manager->game_state == STATE_RUNNING && !WindowShouldClose()) {
+        game_manager->delta_time = GetFrameTime();
         game_manager_update(game_manager);
         game_manager_render(game_manager);
     }

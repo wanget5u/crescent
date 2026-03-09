@@ -29,21 +29,28 @@ typedef int32_t b32;
 typedef Vector2 Vec2;
 typedef Vector3 Vec3;
 
+#define MIN_SCREEN_WIDTH (640)
+#define MIN_SCREEN_HEIGHT (480)
+#define BASE_SCREEN_WIDTH (1600)
+#define BASE_SCREEN_HEIGHT (900)
+#define BASE_TEXTURE_FILTER TEXTURE_FILTER_BILINEAR
+
 #define TEXT_COLOR DARKGRAY
 #define BG_COLOR GRAY
 #define GRID_COLOR LIGHTGRAY
 
-#define FONT_SIZE 25.0f
-#define FONT_SPACING 1.0f
+#define FONT_SIZE (25.0f)
+#define FONT_SPACING (1.0f)
 
-#define PLAYER_SPEED 5.0f
-#define PLAYER_ACC 15.0f
+#define PLAYER_SPEED (5.0f)
+#define PLAYER_ACC (15.0f)
 #define PLAYER_COLOR RED
 
-#define GRID_SCALE 2000.0f
-#define EDITOR_FLY_SPEED 15.0f
+#define GRID_SCALE (1000.0f)
+#define BASE_EDITOR_FLY_SPEED (20.0f)
+#define EDITOR_ACCELERATED_FLY_SPEED (40.0f);
 
-#define CAMERA_FOV 70.0f
+#define CAMERA_FOV (70.0f)
 
-#define MOUSE_SENS 0.0025f
-#define SCROLL_SPEED 4
+#define MOUSE_SENS (0.0025f)
+#define SCROLL_SPEED (4)

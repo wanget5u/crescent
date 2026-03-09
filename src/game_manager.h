@@ -6,26 +6,28 @@
 #include "editor_view.h"
 
 typedef enum {
-    FOCUS_NONE,
-    FOCUS_GAME,
-    FOCUS_EDITOR
+	FOCUS_NONE,
+	FOCUS_GAME,
+	FOCUS_EDITOR
 } ViewFocus;
 
 typedef enum {
-    STATE_EDITING,
-    STATE_RUNNING
+	STATE_EDITING,
+	STATE_RUNNING
 } GameState;
 
 typedef struct {
-    GameState game_state;
-    f32 delta_time;
-    Player player;
-    GameView game_view;
-    EditorView editor_view;
-    ViewFocus current_focus;
-    Font font;
-    Shader grid_shader;
-    i32 grid_cam_pos;
+	GameState game_state;
+	f32 delta_time;
+	Player player;
+	GameView game_view;
+	EditorView editor_view;
+	ViewFocus current_focus;
+	Font font;
+	Shader grid_shader;
+	i32 previous_screen_width;
+	i32 previous_screen_height;
+	i32 grid_cam_pos;
 } GameManager;
 
 void game_manager_init(GameManager* game_manager);
