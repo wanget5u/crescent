@@ -7,18 +7,22 @@
 
 #include "game_manager.h"
 
-static void environment_render(GameManager* game_manager) {
-    f32 spacing = 1.0f;
-    i32 count = 100;
-    f32 snap_x = roundf(game_manager -> player.position.x / spacing) * spacing;
-    f32 snap_z = roundf(game_manager -> player.position.z / spacing) * spacing;
+static void environment_render(GameManager* game_manager, Vec3 camera_pos) {
+    SetShaderValue(game_manager -> grid_shader, game_manager -> grid_cam_pos, &camera_pos, SHADER_UNIFORM_VEC3);
+    BeginBlendMode(BLEND_ALPHA);
+    BeginShaderMode(game_manager -> grid_shader);
+    rlDisableBackfaceCulling();
     rlPushMatrix();
-        rlTranslatef(snap_x, 0.0f, snap_z);
-        for (i32 x = -count; x <= count; x++) {
-            DrawLine3D((Vec3) {(f32) x * spacing, 0, (f32) -count }, (Vec3){(f32) x * spacing, 0, (f32) count }, WIRE_COLOR);
-            DrawLine3D((Vec3) {(f32) -count, 0, (f32) x * spacing }, (Vec3){(f32) count, 0, (f32) x * spacing }, WIRE_COLOR);
-        }
+    rlTranslatef(camera_pos.x, 0.0f, camera_pos.z);
+    rlBegin(RL_QUADS); 
+        rlVertex3f(-GRID_SCALE, 0.0f,-GRID_SCALE);
+        rlVertex3f(-GRID_SCALE, 0.0f, GRID_SCALE);
+        rlVertex3f( GRID_SCALE, 0.0f, GRID_SCALE);
+        rlVertex3f( GRID_SCALE, 0.0F,-GRID_SCALE);
+    rlEnd();
     rlPopMatrix();
+    EndShaderMode();
+    EndBlendMode();
 }
 
 static void render_ui(GameManager* game_manager) {
@@ -35,13 +39,13 @@ static void render_ui(GameManager* game_manager) {
 
 static void render_game_view(GameManager* game_manager) {
     game_view_begin_render(&game_manager -> game_view);
-    environment_render(game_manager);
+    environment_render(game_manager, game_manager -> game_view.camera.rl_camera.position);
     game_view_end_render(&game_manager -> game_view);
 }
 
 static void render_editor_view(GameManager* game_manager) {
     editor_view_begin_render(&game_manager -> editor_view);
-    environment_render(game_manager);
+    environment_render(game_manager, game_manager -> editor_view.camera.rl_camera.position);
     player_render(&game_manager -> player);
     editor_view_end_render(&game_manager -> editor_view);
 }
@@ -57,12 +61,18 @@ static void font_init(GameManager* game_manager) {
     SetTextureFilter(game_manager -> font.texture, TEXTURE_FILTER_BILINEAR);
 }
 
+static void shader_init(GameManager* game_manager) {
+    game_manager -> grid_shader = LoadShader("./assets/shaders/world_grid.vs", "assets/shaders/world_grid.fs");
+    game_manager -> grid_cam_pos = GetShaderLocation(game_manager -> grid_shader, "camPos");
+}
+
 void game_manager_init(GameManager* game_manager) {
     game_manager -> game_state = STATE_RUNNING;
     SetTraceLogLevel(LOG_WARNING);
     log_msg("initialising");
     InitWindow(1280, 720, "Crescent");
     SetTargetFPS(10000);
+    shader_init(game_manager);
     font_init(game_manager);
     player_init(&game_manager -> player);
     game_view_init(&game_manager -> game_view);
@@ -111,6 +121,7 @@ void game_manager_render(GameManager* game_manager) {
 }
 
 void game_manager_cleanup(GameManager* game_manager) {
+    UnloadShader(game_manager -> grid_shader);
     UnloadFont(game_manager -> font);
     CloseWindow();
     log_msg("closing");

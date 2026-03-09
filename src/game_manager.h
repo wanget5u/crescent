@@ -24,6 +24,8 @@ typedef struct {
     EditorView editor_view;
     ViewFocus current_focus;
     Font font;
+    Shader grid_shader;
+    i32 grid_cam_pos;
 } GameManager;
 
 void game_manager_init(GameManager* game_manager);

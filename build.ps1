@@ -9,24 +9,6 @@ $defines  = @("-D_CRT_SECURE_NO_WARNINGS", "-DIMGUI_HAS_DOCK")
 $warnings = @("-Wno-missing-field-initializers", "-Wno-deprecated", "-Wno-unused-function")
 $libs     = @("-L./lib", "-lraylib", "-lwinmm", "-lgdi32", "-luser32", "-lshell32")
 
-$error_occurred = $false
-
-# compile ImGui core 
-$imgui_files = Get-ChildItem "src/imgui_impl/*.cpp"
-foreach ($file in $imgui_files) {
-    $objPath = "build/$($file.BaseName).o"
-    if (!(Test-Path $objPath)) {
-        Write-Host "[+] building ImGui core: $($file.Name)..."
-        & clang++ -c $file.FullName -O3 $includes $defines $warnings -o $objPath
-        if ($LASTEXITCODE -ne 0) { $error_occurred = $true; break }
-    }
-}
-
-if ($error_occurred) {
-    Write-Host "error compiling libraries."
-    exit
-}
-
 # compile modified engine source
 $game_files = Get-ChildItem "src/*.c"
 $header_files = Get-ChildItem -Path "src", "include" -Filter *.h -Recurse
@@ -54,8 +36,7 @@ foreach ($file in $game_files) {
 
     if ($compile) {
         Write-Host "[+] Compiling: $($file.Name)..."
-        & clang++ -x c++ -c $file.FullName -O3 $includes $defines $warnings -o $objPath
-        if ($LASTEXITCODE -ne 0) { $error_occurred = $true; break }
+        & clang -x c -c $file.FullName -O3 $includes $defines $warnings -o $objPath
         $needs_linking = $true
     }
 }
@@ -65,7 +46,7 @@ if ($needs_linking -or !(Test-Path "bin/crescent.exe")) {
     Write-Host "[~] linking crescent.exe..."
     $all_objs = Get-ChildItem "build/*.o" | ForEach-Object { $_.FullName }
     
-    & clang++ $all_objs $libs -o bin/crescent.exe
+    & clang $all_objs $libs -o bin/crescent.exe
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "linking failed."
