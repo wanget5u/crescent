@@ -10,10 +10,18 @@ void camera_init(GameCamera* camera) {
     camera -> yaw = 0.0f;
 }
 
-void camera_update(GameCamera* camera, Vec3* target_pos, f32 delta_time) {
+void camera_init_pos(GameCamera* camera, Vec3 initial_pos) {
+    camera_init(camera); 
+    camera -> rl_camera.position = initial_pos;
+    camera -> rl_camera.target = (Vec3){ initial_pos.x, initial_pos.y, initial_pos.z - 1.0f };
+}
+
+void camera_update(GameCamera* camera, Vec3* target_pos, bool is_focused, f32 delta_time) {
     (void) delta_time;
     handle_cursor_visibility();
-    handle_camera_rotation(camera);
+    if (is_focused) {
+        handle_camera_rotation(camera);   
+    }
     handle_camera_clamp(camera);
     apply_camera_pos(camera, target_pos);
 }
@@ -28,11 +36,9 @@ void handle_cursor_visibility() {
 }
 
 void handle_camera_rotation(GameCamera* camera) {
-    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-        Vec2 mouse_delta = GetMouseDelta();
-        camera -> yaw -= mouse_delta.x * MOUSE_SENS;
-        camera -> pitch -= mouse_delta.y * MOUSE_SENS;
-    }
+    Vec2 mouse_delta = GetMouseDelta();
+    camera -> yaw -= mouse_delta.x * MOUSE_SENS;
+    camera -> pitch -= mouse_delta.y * MOUSE_SENS;
 }
 
 void handle_camera_zoom(GameCamera* camera) {

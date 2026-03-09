@@ -2,8 +2,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <raylib.h>
-#include <raymath.h>
+#include <raylib/raylib.h>
+#include <raylib/raymath.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -33,11 +33,16 @@ typedef Vector3 Vec3;
 #define BG_COLOR GRAY
 #define WIRE_COLOR LIGHTGRAY
 
+#define FONT_SIZE 25.0f
+#define FONT_SPACING 1.0f
+
 #define PLAYER_SPEED 5.0f
 #define PLAYER_ACC 15.0f
 #define PLAYER_COLOR RED
 
-#define CAMERA_FOV 70.0f;
+#define EDITOR_FLY_SPEED 15.0f
 
-#define MOUSE_SENS 0.0025f;
-#define SCROLL_SPEED 4;
+#define CAMERA_FOV 70.0f
+
+#define MOUSE_SENS 0.0025f
+#define SCROLL_SPEED 4

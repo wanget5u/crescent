@@ -2,18 +2,28 @@
 
 #include "core.h"
 #include "player.h"
-#include "game_camera.h"
+#include "game_view.h"
+#include "editor_view.h"
 
 typedef enum {
-    RUNNING,
-    PAUSED
+    FOCUS_NONE,
+    FOCUS_GAME,
+    FOCUS_EDITOR
+} ViewFocus;
+
+typedef enum {
+    STATE_EDITING,
+    STATE_RUNNING
 } GameState;
 
 typedef struct {
     GameState game_state;
-    Player player;
-    GameCamera camera;
     f32 delta_time;
+    Player player;
+    GameView game_view;
+    EditorView editor_view;
+    ViewFocus current_focus;
+    Font font;
 } GameManager;
 
 void game_manager_init(GameManager* game_manager);
