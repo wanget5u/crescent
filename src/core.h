@@ -23,8 +23,6 @@ typedef uint64_t u64;
 typedef float  f32;
 typedef double f64;
 
-typedef int32_t b32;
-
 // raylib alises
 typedef Vector2 Vec2;
 typedef Vector3 Vec3;
@@ -47,10 +45,10 @@ typedef Vector3 Vec3;
 #define PLAYER_COLOR RED
 
 #define GRID_SCALE (1000.0f)
-#define BASE_EDITOR_FLY_SPEED (20.0f)
+#define BASE_EDITOR_FLY_SPEED (15.0f)
 #define EDITOR_ACCELERATED_FLY_SPEED (40.0f);
 
 #define CAMERA_FOV (70.0f)
 
-#define MOUSE_SENS (0.0025f)
+#define MOUSE_SENS (0.0015f)
 #define SCROLL_SPEED (4)

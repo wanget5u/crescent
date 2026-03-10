@@ -13,26 +13,16 @@ void camera_init(GameCamera* camera) {
 void camera_init_pos(GameCamera* camera, Vec3 initial_pos) {
     camera_init(camera); 
     camera->rl_camera.position = initial_pos;
-    camera->rl_camera.target = (Vec3){ initial_pos.x, initial_pos.y, initial_pos.z - 1.0f };
+    camera->rl_camera.target = (Vec3) {initial_pos.x, initial_pos.y, initial_pos.z - 1.0f};
 }
 
 void camera_update(GameCamera* camera, Vec3* target_pos, bool is_focused, f32 delta_time) {
     (void) delta_time;
-    handle_cursor_visibility();
     if (is_focused) {
         handle_camera_rotation(camera);   
     }
     handle_camera_clamp(camera);
     apply_camera_pos(camera, target_pos);
-}
-
-void handle_cursor_visibility() {
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-        DisableCursor();
-    }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
-        EnableCursor();
-    }
 }
 
 void handle_camera_rotation(GameCamera* camera) {

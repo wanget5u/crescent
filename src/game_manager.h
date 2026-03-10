@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.h"
+#include "input_manager.h"
 #include "player.h"
 #include "game_view.h"
 #include "editor_view.h"
@@ -19,6 +20,7 @@ typedef enum {
 typedef struct {
 	GameState game_state;
 	f32 delta_time;
+	InputManager input_manager;
 	Player player;
 	GameView game_view;
 	EditorView editor_view;

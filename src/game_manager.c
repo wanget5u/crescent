@@ -33,8 +33,8 @@ static void render_ui(GameManager* game_manager) {
         game_manager->player.position.y, 
         game_manager->player.position.z
     );
-    DrawTextEx(game_manager->font, coordinates_text, (Vec2) {10.0f, (f32) GetScreenHeight() - 25.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
-    DrawTextEx(game_manager->font, "Editor", (Vector2){ ((f32) GetScreenWidth() / 2.0f) + 10.0f, 10.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
+    DrawTextEx(game_manager->font, coordinates_text, (Vec2) {10.0f, (f32)GetScreenHeight() - 25.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
+    DrawTextEx(game_manager->font, "Editor", (Vector2){ ((f32)GetScreenWidth() / 2.0f) + 10.0f, 10.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
 }
 
 static void render_game_view(GameManager* game_manager) {
@@ -51,9 +51,9 @@ static void render_editor_view(GameManager* game_manager) {
 }
 
 static void draw_split_screen(GameManager* game_manager) {
-    Rectangle source_rect = {0.0f, 0.0f, (f32) GetScreenWidth() / 2.0f, (f32) -GetScreenHeight()};
+    Rectangle source_rect = {0.0f, 0.0f, (f32)GetScreenWidth() / 2.0f, (f32)-GetScreenHeight()};
     DrawTextureRec(game_manager->game_view.view.texture, source_rect, (Vec2) {0.0f, 0.0f}, WHITE);
-    DrawTextureRec(game_manager->editor_view.view.texture, source_rect, (Vec2) {(f32) GetScreenWidth() / 2.0f, 0.0f}, WHITE);
+    DrawTextureRec(game_manager->editor_view.view.texture, source_rect, (Vec2) {(f32)GetScreenWidth() / 2.0f, 0.0f}, WHITE);
 }
 
 static void font_init(GameManager* game_manager) {
@@ -66,28 +66,6 @@ static void shader_init(GameManager* game_manager) {
     game_manager->grid_cam_pos = GetShaderLocation(game_manager->grid_shader, "camPos");
 }
 
-static void handle_viewport_camera_movement(GameManager* game_manager) {
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-        i32 click_x = GetMouseX();
-        DisableCursor();
-        if (click_x < GetScreenWidth() / 2) {
-            game_manager->current_focus = FOCUS_GAME;
-        } else {
-            game_manager->current_focus = FOCUS_EDITOR;
-        }
-    }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
-        EnableCursor();
-        game_manager->current_focus = FOCUS_NONE;
-    }
-    game_manager->player.input_direction = (Vec3) {0.0f, 0.0f, 0.0f};
-    if (game_manager->current_focus == FOCUS_GAME) {
-        game_view_handle_input(&game_manager->game_view, &game_manager->player);
-    } else if (game_manager->current_focus == FOCUS_EDITOR) {
-        editor_view_handle_input(&game_manager->editor_view, game_manager->delta_time);
-    }
-}
-
 static void handle_window_resize(GameManager* game_manager) {
     i32 current_screen_width = GetScreenWidth();
     i32 current_screen_height = GetScreenHeight();
@@ -95,13 +73,15 @@ static void handle_window_resize(GameManager* game_manager) {
     i32 target_view_height = current_screen_height;
     if (game_manager->game_view.view.texture.width != target_view_width ||
         game_manager->game_view.view.texture.height != target_view_height) {
-        game_view_resize(&game_manager->game_view, current_screen_width / 2.0f, current_screen_height);
-        editor_view_resize(&game_manager->editor_view, current_screen_width / 2.0f, current_screen_height);
+        game_view_resize(&game_manager->game_view, 0, 0, target_view_width, target_view_height);
+        editor_view_resize(&game_manager->editor_view, target_view_width, 0, target_view_width, target_view_height);
+        game_manager->game_view.bounds = (Rectangle){0, 0, (f32)target_view_width, (f32)target_view_height};
+        game_manager->editor_view.bounds = (Rectangle){(f32)target_view_width, 0, (f32)target_view_width, (f32)target_view_height};
     }
 }
 
 static void handle_toggle_fullscreen(GameManager* game_manager) {
-    if (IsKeyPressed(KEY_F11)) {
+    if (input_is_pressed(&game_manager->input_manager, ACTION_TOGGLE_FULLSCREEN)) {
         i32 display = GetCurrentMonitor();
         if (IsWindowFullscreen()) {
             ToggleFullscreen();
@@ -127,24 +107,21 @@ void game_manager_init(GameManager* game_manager) {
     SetTargetFPS(10000);
     shader_init(game_manager);
     font_init(game_manager);
+    input_manager_init(&game_manager->input_manager);
     player_init(&game_manager->player);
     game_view_init(&game_manager->game_view);
     editor_view_init(&game_manager->editor_view);
 }
 
-void game_manager_handle_input(GameManager* game_manager) {
-    handle_viewport_camera_movement(game_manager);
-    handle_toggle_fullscreen(game_manager);
-}
-
 void game_manager_update(GameManager* game_manager) {
     handle_window_resize(game_manager);
-    game_manager_handle_input(game_manager);
+    input_manager_update(&game_manager->input_manager);
+    handle_toggle_fullscreen(game_manager);
+    game_view_update(&game_manager->game_view, &game_manager->player, &game_manager->input_manager);
+    editor_view_update(&game_manager->editor_view, &game_manager->input_manager, game_manager->delta_time);
     player_update(&game_manager->player, &game_manager->game_view.camera.yaw, game_manager->delta_time);
-    bool is_game_focused = (game_manager->current_focus == FOCUS_GAME);
-    bool is_editor_focused = (game_manager->current_focus == FOCUS_EDITOR);
-    camera_update(&game_manager->game_view.camera, &game_manager->player.position, is_game_focused, game_manager->delta_time);
-    camera_update(&game_manager->editor_view.camera, &game_manager->editor_view.camera.rl_camera.position, is_editor_focused, game_manager->delta_time);
+    camera_update(&game_manager->game_view.camera, &game_manager->player.position, game_manager->game_view.is_focused, game_manager->delta_time);
+    camera_update(&game_manager->editor_view.camera, &game_manager->editor_view.camera.rl_camera.position, game_manager->editor_view.is_focused, game_manager->delta_time);
 }
 
 void game_manager_render(GameManager* game_manager) {

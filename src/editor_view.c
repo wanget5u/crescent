@@ -4,24 +4,48 @@ void editor_view_init(EditorView* editor_view) {
     camera_init_pos(&editor_view->camera, (Vec3){5.0f, 10.0f, 5.0f});
     editor_view->view = LoadRenderTexture(GetScreenWidth() / 2.0f, GetScreenHeight());
     SetTextureFilter(editor_view->view.texture, BASE_TEXTURE_FILTER);
+    editor_view->bounds = (Rectangle){(f32)GetScreenWidth() / 2.0f, 0, (f32)GetScreenWidth() / 2.0f, (f32)GetScreenHeight()};
+    editor_view->is_focused = false;
 }
 
-void editor_view_handle_input(EditorView* editor_view, f32 delta_time) {
+void editor_view_update(EditorView* editor_view, InputManager* input_manager, f32 delta_time) {
+    Vec2 mouse_pos = GetMousePosition();
+    if (input_is_pressed(input_manager, ACTION_FOCUS)) {
+        if (!IsCursorHidden() && CheckCollisionPointRec(mouse_pos, editor_view->bounds)) {
+            editor_view->is_focused = true;
+            editor_view->saved_mouse_pos = mouse_pos;
+            DisableCursor();
+        }
+    }
+    if (input_is_released(input_manager, ACTION_FOCUS)) {
+        if (editor_view->is_focused) {
+            editor_view->is_focused = false;
+            EnableCursor();
+            SetMousePosition((i32)editor_view->saved_mouse_pos.x, (i32)editor_view->saved_mouse_pos.y);
+        }
+    }
+    if (editor_view->is_focused) {
+        editor_view_handle_input(editor_view, delta_time, input_manager);
+        handle_camera_rotation(&editor_view->camera);
+    }
+}
+
+void editor_view_handle_input(EditorView* editor_view, f32 delta_time, InputManager* input_manager) {
     Vec3 input_direction = (Vec3) {0.0f, 0.0f, 0.0f};
     Vec3 forward = Vector3Subtract(editor_view->camera.rl_camera.target, editor_view->camera.rl_camera.position);
     forward = Vector3Normalize(forward);
     Vec3 right = Vector3CrossProduct(forward, editor_view->camera.rl_camera.up);
     right = Vector3Normalize(right);
-    if (IsKeyDown(KEY_W)) {
+    if (input_is_down(input_manager, ACTION_MOVE_FORWARD)) {
         input_direction = Vector3Add(input_direction, forward);
     }
-    if (IsKeyDown(KEY_S)) {
+    if (input_is_down(input_manager, ACTION_MOVE_BACKWARD)) {
         input_direction = Vector3Subtract(input_direction, forward);
     }
-    if (IsKeyDown(KEY_D)) {
+    if (input_is_down(input_manager, ACTION_MOVE_RIGHT)) {
         input_direction = Vector3Add(input_direction, right);
     }
-    if (IsKeyDown(KEY_A)) {
+    if (input_is_down(input_manager, ACTION_MOVE_LEFT)) {
         input_direction = Vector3Subtract(input_direction, right);
     }
     if (IsKeyDown(KEY_LEFT_SHIFT)) {
@@ -48,12 +72,13 @@ void editor_view_end_render(EditorView* editor_view) {
     EndTextureMode();
 }
 
-void editor_view_resize(EditorView* editor_view, i32 new_width, i32 new_height) {
+void editor_view_resize(EditorView* editor_view, i32 x, i32 y, i32 width, i32 height) {
     if (editor_view->view.id > 0) {
         UnloadRenderTexture(editor_view->view);
     }
-    editor_view->view = LoadRenderTexture(new_width, new_height);
+    editor_view->view = LoadRenderTexture(width, height);
     SetTextureFilter(editor_view->view.texture, BASE_TEXTURE_FILTER);
+    editor_view->bounds = (Rectangle) {(f32)x, (f32)y, (f32)width, (f32)height};
 }
 
 void editor_view_cleanup(EditorView* editor_view) {
