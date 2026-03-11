@@ -1,59 +1,74 @@
-#include <raylib/raylib.h>
-#include <raylib/raymath.h>
-#include <raylib/rlgl.h>
+#include <raylib.h>
+#include <raymath.h>
+#include <rlgl.h>
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
 
 #include "game_manager.h"
 
-static void environment_render(GameManager* game_manager, Vec3 camera_pos) {
-    SetShaderValue(game_manager->grid_shader, game_manager->grid_cam_pos, &camera_pos, SHADER_UNIFORM_VEC3);
-    BeginBlendMode(BLEND_ALPHA);
-    BeginShaderMode(game_manager->grid_shader);
-    rlDisableBackfaceCulling();
-    rlPushMatrix();
-    rlTranslatef(camera_pos.x, 0.0f, camera_pos.z);
-    rlBegin(RL_QUADS); 
-        rlVertex3f(-GRID_SCALE, 0.0f,-GRID_SCALE);
-        rlVertex3f(-GRID_SCALE, 0.0f, GRID_SCALE);
-        rlVertex3f( GRID_SCALE, 0.0f, GRID_SCALE);
-        rlVertex3f( GRID_SCALE, 0.0F,-GRID_SCALE);
-    rlEnd();
-    rlPopMatrix();
-    EndShaderMode();
-    EndBlendMode();
+static void window_init() {
+    InitWindow(BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT, "Crescent");
+    SetWindowMinSize(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
+    SetTargetFPS(10000);
+}
+
+static void draw_dock_tree(DockNode* node, Font font) {
+    if (!node) {
+        return;
+    }
+    if (node->type == DOCK_LEAF) {
+        Rectangle source_rect = {0.0f, 0.0f, (f32)node->render_target.texture.width, (f32)-node->render_target.texture.height};
+        Vec2 position = {node->bounds.x, node->bounds.y};
+        DrawTextureRec(node->render_target.texture, source_rect, position, WHITE);
+        if (node->content && node->content->title) {
+            Vec2 text_size = MeasureTextEx(font, node->content->title, FONT_SIZE, FONT_SPACING);
+            f32 padding = 5.0f;
+            Rectangle title_bg = {
+                node->bounds.x,
+                node->bounds.y,
+                text_size.x + (padding * 2.0f),
+                text_size.y + (padding * 2.0f)
+            };
+            DrawRectangleRec(title_bg, TEXT_COLOR);
+            Vec2 text_pos = {node->bounds.x + padding, node->bounds.y + padding};
+            DrawTextEx(font, node->content->title, text_pos, FONT_SIZE, FONT_SPACING, RAYWHITE);
+        }
+    } else {
+        draw_dock_tree(node->child_a, font);
+        draw_dock_tree(node->child_b, font);
+        Color splitter_color = DOCK_SPLITTER_COLOR;
+        f32 visual_thickness = 4.0f;
+        if (node->type == DOCK_SPLIT_HORIZONTAL) {
+            f32 split_x = node->bounds.x + (node->bounds.width * node->split_ratio);
+            DrawRectangle(
+                (i32)(split_x - (visual_thickness / 2.0f)), 
+                (i32)node->bounds.y, 
+                (i32)visual_thickness, 
+                (i32)node->bounds.height, 
+                splitter_color
+            );
+        } else if (node->type == DOCK_SPLIT_VERTICAL) {
+            f32 split_y = node->bounds.y + (node->bounds.height * node->split_ratio);
+            DrawRectangle(
+                (i32)node->bounds.x, 
+                (i32)(split_y - (visual_thickness / 2.0f)), 
+                (i32)node->bounds.width, 
+                (i32)visual_thickness, 
+                splitter_color
+            );
+        }
+    }
 }
 
 static void render_ui(GameManager* game_manager) {
     DrawTextEx(game_manager->font, TextFormat("%i FPS", GetFPS()), (Vec2) {10.0f, 40.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
-    DrawTextEx(game_manager->font, "Game", (Vec2){10.0f, 10.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
     const char* coordinates_text = TextFormat("x: %.2f, y: %.2f, z: %.2f", 
         game_manager->player.position.x, 
         game_manager->player.position.y, 
         game_manager->player.position.z
     );
     DrawTextEx(game_manager->font, coordinates_text, (Vec2) {10.0f, (f32)GetScreenHeight() - 25.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
-    DrawTextEx(game_manager->font, "Editor", (Vector2){ ((f32)GetScreenWidth() / 2.0f) + 10.0f, 10.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
-}
-
-static void render_game_view(GameManager* game_manager) {
-    game_view_begin_render(&game_manager->game_view);
-    environment_render(game_manager, game_manager->game_view.camera.rl_camera.position);
-    game_view_end_render(&game_manager->game_view);
-}
-
-static void render_editor_view(GameManager* game_manager) {
-    editor_view_begin_render(&game_manager->editor_view);
-    environment_render(game_manager, game_manager->editor_view.camera.rl_camera.position);
-    player_render(&game_manager->player);
-    editor_view_end_render(&game_manager->editor_view);
-}
-
-static void draw_split_screen(GameManager* game_manager) {
-    Rectangle source_rect = {0.0f, 0.0f, (f32)GetScreenWidth() / 2.0f, (f32)-GetScreenHeight()};
-    DrawTextureRec(game_manager->game_view.view.texture, source_rect, (Vec2) {0.0f, 0.0f}, WHITE);
-    DrawTextureRec(game_manager->editor_view.view.texture, source_rect, (Vec2) {(f32)GetScreenWidth() / 2.0f, 0.0f}, WHITE);
 }
 
 static void font_init(GameManager* game_manager) {
@@ -67,21 +82,14 @@ static void shader_init(GameManager* game_manager) {
 }
 
 static void handle_window_resize(GameManager* game_manager) {
-    i32 current_screen_width = GetScreenWidth();
-    i32 current_screen_height = GetScreenHeight();
-    i32 target_view_width = current_screen_width / 2;
-    i32 target_view_height = current_screen_height;
-    if (game_manager->game_view.view.texture.width != target_view_width ||
-        game_manager->game_view.view.texture.height != target_view_height) {
-        game_view_resize(&game_manager->game_view, 0, 0, target_view_width, target_view_height);
-        editor_view_resize(&game_manager->editor_view, target_view_width, 0, target_view_width, target_view_height);
-        game_manager->game_view.bounds = (Rectangle){0, 0, (f32)target_view_width, (f32)target_view_height};
-        game_manager->editor_view.bounds = (Rectangle){(f32)target_view_width, 0, (f32)target_view_width, (f32)target_view_height};
+    if (IsWindowResized()) {
+        Rectangle new_bounds = {0, 0, (f32)GetScreenWidth(), (f32)GetScreenHeight()};
+        dock_node_resize_tree(game_manager->ui_root, new_bounds);
     }
 }
 
 static void handle_toggle_fullscreen(GameManager* game_manager) {
-    if (input_is_pressed(&game_manager->input_manager, ACTION_TOGGLE_FULLSCREEN)) {
+    if (input_is_pressed(&game_manager->input, ACTION_TOGGLE_FULLSCREEN)) {
         i32 display = GetCurrentMonitor();
         if (IsWindowFullscreen()) {
             ToggleFullscreen();
@@ -97,39 +105,53 @@ static void handle_toggle_fullscreen(GameManager* game_manager) {
     }
 }
 
+static void window_panels_init(GameManager* game_manager) {
+    Panel* game_panel = game_view_create(
+        &game_manager->player,
+        game_manager->grid_shader,
+        game_manager->grid_cam_pos
+    );
+    Panel* editor_panel = editor_view_create(
+        &game_manager->player,
+        game_manager->grid_shader,
+        game_manager->grid_cam_pos
+    );
+    DockNode* left_leaf = dock_node_create_leaf(game_panel, BASE_SCREEN_WIDTH / 2, BASE_SCREEN_HEIGHT);
+    DockNode* right_leaf = dock_node_create_leaf(editor_panel, BASE_SCREEN_WIDTH / 2, BASE_SCREEN_HEIGHT);
+    game_manager->ui_root = dock_node_create_split(DOCK_SPLIT_HORIZONTAL, 0.5f, left_leaf, right_leaf);
+    Rectangle initial_bounds = {0, 0, BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT};
+    dock_node_resize_tree(game_manager->ui_root, initial_bounds);
+}
+
 void game_manager_init(GameManager* game_manager) {
     game_manager->game_state = STATE_RUNNING;
-    SetTraceLogLevel(LOG_WARNING);
     log_msg("initialising");
+    SetTraceLogLevel(LOG_WARNING);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT, "Crescent");
-    SetWindowMinSize(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
-    SetTargetFPS(10000);
+    window_init();
     shader_init(game_manager);
     font_init(game_manager);
-    input_manager_init(&game_manager->input_manager);
+    input_init(&game_manager->input);
     player_init(&game_manager->player);
-    game_view_init(&game_manager->game_view);
-    editor_view_init(&game_manager->editor_view);
+    window_panels_init(game_manager);
 }
 
 void game_manager_update(GameManager* game_manager) {
+    i32 desired_mouse_cursor = MOUSE_CURSOR_DEFAULT;
     handle_window_resize(game_manager);
-    input_manager_update(&game_manager->input_manager);
+    input_update(&game_manager->input);
     handle_toggle_fullscreen(game_manager);
-    game_view_update(&game_manager->game_view, &game_manager->player, &game_manager->input_manager);
-    editor_view_update(&game_manager->editor_view, &game_manager->input_manager, game_manager->delta_time);
-    player_update(&game_manager->player, &game_manager->game_view.camera.yaw, game_manager->delta_time);
-    camera_update(&game_manager->game_view.camera, &game_manager->player.position, game_manager->game_view.is_focused, game_manager->delta_time);
-    camera_update(&game_manager->editor_view.camera, &game_manager->editor_view.camera.rl_camera.position, game_manager->editor_view.is_focused, game_manager->delta_time);
+    dock_node_update_tree(game_manager->ui_root, &game_manager->input, game_manager->delta_time, &desired_mouse_cursor);
+    if (!IsCursorHidden()) {
+        SetMouseCursor(desired_mouse_cursor);
+    }
 }
 
 void game_manager_render(GameManager* game_manager) {
-    render_game_view(game_manager);
-    render_editor_view(game_manager);
+    dock_node_render_tree(game_manager->ui_root);
     BeginDrawing();
     ClearBackground(BG_COLOR); 
-    draw_split_screen(game_manager);
+    draw_dock_tree(game_manager->ui_root, game_manager->font);
     render_ui(game_manager);
     EndDrawing();
 }

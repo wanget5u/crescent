@@ -5,6 +5,7 @@
 #include "player.h"
 #include "game_view.h"
 #include "editor_view.h"
+#include "dock_node.h"
 
 typedef enum {
 	FOCUS_NONE,
@@ -20,13 +21,12 @@ typedef enum {
 typedef struct {
 	GameState game_state;
 	f32 delta_time;
-	InputManager input_manager;
+	InputManager input;
 	Player player;
-	GameView game_view;
-	EditorView editor_view;
 	ViewFocus current_focus;
 	Font font;
 	Shader grid_shader;
+	DockNode* ui_root;
 	i32 previous_screen_width;
 	i32 previous_screen_height;
 	i32 grid_cam_pos;

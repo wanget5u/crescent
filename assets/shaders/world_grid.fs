@@ -24,7 +24,7 @@ void main() {
 	float minPixels = 1.0;
 	vec2 dudv = trueFwidth(fragWorldPos.xz);
 	float dudvLength = length(dudv);
-	float lod = max(0.0, (log(dudvLength * minPixels / baseSize) / log(100.0)) + 1.0);
+	float lod = max(0.0, (log(dudvLength * minPixels / baseSize) / log(200.0)) + 1.0);
 	float lodLevel = floor(lod);
 	float lodFade = fract(lod);
 	float cell0 = baseSize * pow(10.0, lodLevel);
@@ -35,7 +35,7 @@ void main() {
 	float alpha2 = getGrid(fragWorldPos.xz, cell2);
 	float alpha = max(alpha2, max(alpha1, alpha0 * (1.0 - lodFade)));
 	float dist = length(fragWorldPos - camPos);
-	float fade = 1.0 - clamp(dist / 350.0, 0.0, 1.0);
+	float fade = 1.0 - clamp(dist / 200.0, 0.0, 1.0);
 	float finalAlpha = alpha * fade;
 	vec3 gridColor = vec3(0.9);
 	finalColor = vec4(gridColor, finalAlpha);

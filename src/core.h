@@ -2,8 +2,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <raylib/raylib.h>
-#include <raylib/raymath.h>
+#include <raylib.h>
+#include <raymath.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -32,6 +32,8 @@ typedef Vector3 Vec3;
 #define BASE_SCREEN_WIDTH (1600)
 #define BASE_SCREEN_HEIGHT (900)
 #define BASE_TEXTURE_FILTER TEXTURE_FILTER_BILINEAR
+#define DOCK_SPLITTER_THICKNESS (8.0f)
+#define DOCK_SPLITTER_COLOR DARKGRAY
 
 #define TEXT_COLOR DARKGRAY
 #define BG_COLOR GRAY

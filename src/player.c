@@ -1,5 +1,5 @@
-#include <raylib/raylib.h>
-#include <raylib/rlgl.h>
+#include <raylib.h>
+#include <rlgl.h>
 
 #include "player.h"
 

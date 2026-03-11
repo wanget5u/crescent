@@ -33,8 +33,8 @@ typedef struct {
     bool state_released[ACTION_MAX];
 } InputManager;
 
-void input_manager_init(InputManager* input_manager);
-void input_manager_update(InputManager* input_manager);
-bool input_is_down(InputManager* input_manager, InputAction input_action);
-bool input_is_pressed(InputManager* input_manager, InputAction input_action);
-bool input_is_released(InputManager* input_manager, InputAction input_action);
+void input_init(InputManager* input);
+void input_update(InputManager* input);
+bool input_is_down(InputManager* input, InputAction input_action);
+bool input_is_pressed(InputManager* input, InputAction input_action);
+bool input_is_released(InputManager* input, InputAction input_action);
