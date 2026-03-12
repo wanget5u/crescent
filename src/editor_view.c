@@ -29,6 +29,7 @@ typedef struct {
     Color color;
     const char* label;
     i32 id;
+    bool is_negative;
 } GizmoAxis;
 
 typedef struct {
@@ -41,8 +42,8 @@ typedef struct {
 } GizmoStyle;
 
 static const GizmoStyle GIZMO_STYLE = {
-    .margin_right = 60.0f,
-    .margin_top = 60.0f,
+    .margin_right = 70.0f,
+    .margin_top = 70.0f,
     .line_length = 35.0f,
     .tip_radius = 8.0f,
     .bg_radius = 43.0f,
@@ -55,9 +56,12 @@ static void calculate_gizmo_axes(Camera3D camera, GizmoAxis* out_axes) {
     Vec2 axis_x = Vector2Scale((Vec2){view_mat.m0, -view_mat.m1}, length);
     Vec2 axis_y = Vector2Scale((Vec2){view_mat.m4, -view_mat.m5}, length);
     Vec2 axis_z = Vector2Scale((Vec2){view_mat.m8, -view_mat.m9}, length);
-    out_axes[0] = (GizmoAxis){axis_x, view_mat.m2, RED, "X", 0};
-    out_axes[1] = (GizmoAxis){axis_y, view_mat.m6, GREEN, "Y", 1};
-    out_axes[2] = (GizmoAxis){axis_z, view_mat.m10, BLUE, "Z", 2};
+    out_axes[0] = (GizmoAxis){axis_x, view_mat.m2, RED, "X", 0, false};
+    out_axes[1] = (GizmoAxis){axis_y, view_mat.m6, GREEN, "Y", 1, false};
+    out_axes[2] = (GizmoAxis){axis_z, view_mat.m10, BLUE, "Z", 2, false};
+    out_axes[3] = (GizmoAxis){Vector2Negate(axis_x), -view_mat.m2, RED, "-X", 3, true};
+    out_axes[4] = (GizmoAxis){Vector2Negate(axis_y), -view_mat.m6, GREEN, "-Y", 4, true};
+    out_axes[5] = (GizmoAxis){Vector2Negate(axis_z), -view_mat.m10, BLUE, "-Z", 5, true};
 }
 
 static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
@@ -67,12 +71,12 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
     };
     Vec2 global_mouse = GetMousePosition();
     bool is_hovered = CheckCollisionPointCircle(global_mouse, center, GIZMO_STYLE.bg_radius);
-    GizmoAxis axes[3];
+    GizmoAxis axes[6];
     calculate_gizmo_axes(camera, axes);
     i32 closest_id = -1;
     if (is_hovered) {
         f32 min_dist = 99999.0f;
-        for (i32 i = 0; i < 3; i++) {
+        for (i32 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
             if (dist < min_dist) {
@@ -83,8 +87,8 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
     }
     Color bg_color = is_hovered ? ColorAlpha(RAYWHITE, 0.15f) : ColorAlpha(BLACK, 0.3f);
     DrawCircleV(center, GIZMO_STYLE.bg_radius, bg_color);
-    for (i32 x = 0; x < 2; x++) {
-        for (i32 y = 0; y < 2 - x; y++) {
+    for (i32 x = 0; x < 5; x++) {
+        for (i32 y = 0; y < 5 - x; y++) {
             if (axes[y].depth > axes[y + 1].depth) {
                 GizmoAxis temp = axes[y];
                 axes[y] = axes[y + 1];
@@ -92,19 +96,22 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
             }
         }
     }
-    for (i32 x = 0; x < 3; x++) {
+    for (i32 x = 0; x < 6; x++) {
         Vec2 end_pos = Vector2Add(center, axes[x].pos);
-        DrawLineEx(center, end_pos, GIZMO_STYLE.line_thickness, axes[x].color);
-        DrawCircleV(end_pos, GIZMO_STYLE.tip_radius, axes[x].color);
-        Color text_color = (is_hovered && axes[x].id == closest_id) ? WHITE : (Color){48, 48, 48, 255};
-        f32 label_size = 16.0f;
-        f32 label_spacing = 1.0f;
-        Vec2 text_size = MeasureTextEx(font, axes[x].label, label_size, label_spacing);
-        Vec2 text_pos = { 
-            end_pos.x - (text_size.x / 2.0f), 
-            end_pos.y - (text_size.y / 2.0f) 
-        };
-        DrawTextEx(font, axes[x].label, text_pos, label_size, label_spacing, text_color);
+        if (!axes[x].is_negative) {
+            DrawCircleV(end_pos, GIZMO_STYLE.tip_radius, axes[x].color);
+            DrawLineEx(center, end_pos, GIZMO_STYLE.line_thickness, axes[x].color);
+        } else {
+            Color transparent_bg = axes[x].color;
+            transparent_bg.a = 96;
+            DrawCircleV(end_pos, GIZMO_STYLE.tip_radius, transparent_bg);
+            DrawCircleLinesV(end_pos, GIZMO_STYLE.tip_radius, axes[x].color);
+        }
+        Color text_color = (is_hovered && axes[x].id == closest_id) ? WHITE : DARKGRAY;
+        f32 label_size = 14.0f;
+        Vec2 text_size = MeasureTextEx(font, axes[x].label, label_size, 1.0f);
+        Vec2 text_pos = { end_pos.x - (text_size.x / 2.0f), end_pos.y - (text_size.y / 2.0f) }; 
+        DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
     }
 }
 
@@ -119,11 +126,11 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
     };
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
         CheckCollisionPointCircle(global_mouse, global_gizmo_center, GIZMO_STYLE.bg_radius)) {
-        GizmoAxis axes[3];
+        GizmoAxis axes[6];
         calculate_gizmo_axes(view->camera.rl_camera, axes);
         f32 min_dist = 99999.0f;
         i32 closest_id = -1;
-        for (i32 i = 0; i < 3; i++) {
+        for (i32 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(global_gizmo_center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
             if (dist < min_dist) {
@@ -139,17 +146,29 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
             view->start_yaw = view->camera.yaw;
             view->start_pitch = view->camera.pitch;
             f32 distance = 10.0f;
-            if (closest_id == 0) {
+            if (closest_id == 0) { // +X (Snap Right)
                 view->target_pos = (Vec3){distance, 0.0f, 0.0f};
                 view->target_yaw = -PI / 2.0f; 
                 view->target_pitch = 0.0f;
-            } else if (closest_id == 1) {
+            } else if (closest_id == 1) { // +Y (Snap Top)
                 view->target_pos = (Vec3){0.0f, distance, 0.0f};
                 view->target_yaw = PI; 
-                view->target_pitch = -1.5f;
-            } else if (closest_id == 2) {
+                view->target_pitch = -(PI / 2.0f) + 0.001f;
+            } else if (closest_id == 2) { // +Z (Snap Front)
                 view->target_pos = (Vec3){0.0f, 0.0f, distance};
                 view->target_yaw = PI; 
+                view->target_pitch = 0.0f;
+            } else if (closest_id == 3) { // -X (Snap Left)
+                view->target_pos = (Vec3){-distance, 0.0f, 0.0f};
+                view->target_yaw = PI / 2.0f; 
+                view->target_pitch = 0.0f;
+            } else if (closest_id == 4) { // -Y (Snap Bottom)
+                view->target_pos = (Vec3){0.0f, -distance, 0.0f};
+                view->target_yaw = PI; 
+                view->target_pitch = (PI / 2.0f) - 0.001f;
+            } else if (closest_id == 5) { // -Z (Snap Back)
+                view->target_pos = (Vec3){0.0f, 0.0f, -distance};
+                view->target_yaw = 0.0f; 
                 view->target_pitch = 0.0f;
             }
             while (view->target_yaw - view->start_yaw > PI) {

@@ -36,11 +36,12 @@ void handle_camera_zoom(GameCamera* camera) {
 }
 
 void handle_camera_clamp(GameCamera* camera) {
-    if (camera->pitch > 1.5f) {
-        camera->pitch = 1.5f;
+    f32 max_pitch = (PI / 2.0f) - 0.001f;
+    if (camera->pitch > max_pitch) {
+        camera->pitch = max_pitch;
     }
-    if (camera->pitch < -1.5f) {
-        camera->pitch = -1.5f;
+    if (camera->pitch < -max_pitch) {
+        camera->pitch = -max_pitch;
     }
 }
 
