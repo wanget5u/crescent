@@ -100,8 +100,9 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
     }
     node->bounds = new_bounds;
     if (node->type == DOCK_LEAF) {
+        f32 tab_height = 35.0f;
         i32 width = (node->bounds.width <= 0) ? 1 : (i32)node->bounds.width;
-        i32 height = (node->bounds.height <= 0) ? 1 : (i32)node->bounds.height;
+        i32 height = ((node->bounds.height - tab_height) <= 0) ? 1 : (i32)(node->bounds.height - tab_height);
         if (node->render_target.texture.width != width || node->render_target.texture.height != height) {
             if (node->render_target.id > 0) {
                 UnloadRenderTexture(node->render_target);
@@ -200,7 +201,15 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 dt, i32* cur
         update_leaf_tabs(node, mouse_pos, font, focused_leaf, out_dragged_tab);
         update_leaf_focus(node, mouse_pos, input, focused_leaf);
         if (node->tab_count > 0 && node->tabs[node->active_tab]->update) {
-            node->tabs[node->active_tab]->update(node->tabs[node->active_tab], input, node->is_focused, dt);
+            f32 tab_height = 35.0f;
+            Rectangle content_bounds = {
+                node->bounds.x, 
+                node->bounds.y + tab_height, 
+                node->bounds.width, 
+                node->bounds.height - tab_height
+            };
+            node->tabs[node->active_tab]->bounds = content_bounds;
+            node->tabs[node->active_tab]->update(node->tabs[node->active_tab], input, node->is_focused, dt, font);
         }
     } else {
         update_splitter(node, GetMousePosition(), current_cursor);
@@ -223,5 +232,19 @@ void dock_node_render_tree(DockNode* node) {
     } else {
         dock_node_render_tree(node->child_a);
         dock_node_render_tree(node->child_b);
+    }
+}
+
+void dock_node_render_overlay_tree(DockNode* node, Font font) {
+    if (!node) {
+        return;
+    }
+    if (node->type == DOCK_LEAF) {
+        if (node->tab_count > 0 && node->tabs[node->active_tab]->render_overlay) {
+            node->tabs[node->active_tab]->render_overlay(node->tabs[node->active_tab], font);
+        }
+    } else {
+        dock_node_render_overlay_tree(node->child_a, font);
+        dock_node_render_overlay_tree(node->child_b, font);
     }
 }

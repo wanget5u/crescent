@@ -47,7 +47,7 @@ void game_manager_init(GameManager* game_manager) {
     game_manager->game_state = STATE_RUNNING;
     log_msg("initialising");
     SetTraceLogLevel(LOG_WARNING);
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     window_init();
     shader_init(game_manager);
     input_init(&game_manager->input);

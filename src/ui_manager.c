@@ -45,8 +45,10 @@ static void draw_dock_tree(DockNode* node, Font font) {
         return;
     }
     if (node->type == DOCK_LEAF) {
+        f32 tab_height = 35.0f;
         Rectangle source_rect = {0.0f, 0.0f, (f32)node->render_target.texture.width, (f32)-node->render_target.texture.height};
-        DrawTextureRec(node->render_target.texture, source_rect, (Vec2){node->bounds.x, node->bounds.y}, WHITE);
+        Vec2 position = {node->bounds.x, node->bounds.y + tab_height};
+        DrawTextureRec(node->render_target.texture, source_rect, position, WHITE);
         draw_leaf_tabs(node, font);
     } else {
         draw_dock_tree(node->child_a, font);
@@ -84,10 +86,10 @@ static DockNode* get_hovered_leaf(DockNode* node, Vec2 mouse_pos) {
 
 void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shader, int grid_cam_pos) {
     user_interface->player_ref = player;
-    user_interface->font = LoadFontEx("./assets/fonts/JetBrainsMono-Regular.ttf", 64, NULL, 0);
+    user_interface->font = LoadFontEx("./assets/fonts/JetBrainsMono-Bold.ttf", 64, NULL, 0);
     SetTextureFilter(user_interface->font.texture, TEXTURE_FILTER_BILINEAR);
-    Panel* game_panel = game_view_create(player, grid_shader, grid_cam_pos);
-    Panel* editor_panel = editor_view_create(player, grid_shader, grid_cam_pos);
+    Panel* game_panel = game_view_create(player, grid_shader, grid_cam_pos, user_interface->font);
+    Panel* editor_panel = editor_view_create(player, grid_shader, grid_cam_pos, user_interface->font);
     DockNode* root_leaf = dock_node_create_leaf(BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT);
     dock_node_add_tab(root_leaf, game_panel);
     dock_node_add_tab(root_leaf, editor_panel);
@@ -196,6 +198,7 @@ void ui_manager_render(UIManager* user_interface) {
     BeginDrawing();
     ClearBackground(BG_COLOR); 
     draw_dock_tree(user_interface->root, user_interface->font);
+    dock_node_render_overlay_tree(user_interface->root, user_interface->font);
     render_global_ui(user_interface);
     if (user_interface->dragging_tab != NULL) {
         if (user_interface->current_drop_zone != DROP_NONE) {

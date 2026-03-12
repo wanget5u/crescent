@@ -37,3 +37,4 @@ Panel* dock_node_remove_tab(DockNode* node, i32 tab_index);
 void dock_node_resize_tree(DockNode* node, Rectangle new_bounds);
 void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font, DockNode** focused_leaf, Panel** out_dragged_tab);
 void dock_node_render_tree(DockNode* node);
+void dock_node_render_overlay_tree(DockNode* node, Font font);

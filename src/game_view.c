@@ -24,7 +24,8 @@ static void handle_game_input(GameViewData* view, InputManager* input) {
     view->player_ref->input_direction = Vector3Normalize(input_direction);
 }
 
-static void game_view_update(Panel* panel, InputManager* input, bool is_focused, f32 delta_time) {
+static void game_view_update(Panel* panel, InputManager* input, bool is_focused, f32 delta_time, Font font) {
+    (void) font;
     (void) delta_time;
     GameViewData* view = (GameViewData*)panel->data;
     if (is_focused) {
@@ -49,7 +50,8 @@ static void game_view_cleanup(Panel* panel) {
     free(panel);
 }
 
-Panel* game_view_create(Player* player, Shader grid_shader, i32 cam_pos_loc) {
+Panel* game_view_create(Player* player, Shader grid_shader, i32 cam_pos_loc, Font font) {
+    (void) font;
     Panel* panel = (Panel*)malloc(sizeof(Panel));
     GameViewData* data = (GameViewData*)malloc(sizeof(GameViewData));
     camera_init(&data->camera);
@@ -60,6 +62,7 @@ Panel* game_view_create(Player* player, Shader grid_shader, i32 cam_pos_loc) {
     panel->data = data;
     panel->update = game_view_update;
     panel->render = game_view_render;
+    panel->render_overlay = NULL;
     panel->cleanup = game_view_cleanup;
     return panel;
 }
