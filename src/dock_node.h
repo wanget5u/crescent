@@ -1,5 +1,7 @@
 #pragma once
 
+#define MAX_TABS 8
+
 #include "panel.h"
 
 typedef enum {
@@ -19,13 +21,16 @@ struct DockNode {
     bool is_dragging;
     // LEAF
     RenderTexture2D render_target; 
-    Panel* content;
+    Panel* tabs[MAX_TABS];
+    i32 tab_count;
+    i32 active_tab;
     bool is_focused;
     Vec2 saved_mouse_pos;
 };
 
 DockNode* dock_node_create_split(DockNodeType type, f32 ratio, DockNode* a, DockNode* b);
-DockNode* dock_node_create_leaf(Panel* content, i32 width, i32 height);
+DockNode* dock_node_create_leaf(i32 width, i32 height);
+void dock_node_add_tab(DockNode* node, Panel* panel);
 void dock_node_resize_tree(DockNode* node, Rectangle new_bounds);
-void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor);
+void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font);
 void dock_node_render_tree(DockNode* node);

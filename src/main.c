@@ -14,7 +14,7 @@ void on_update(GameManager* game_manager) {
     game_manager_cleanup(game_manager);
 }
 
-int main() {
+i32 main() {
     log_msg("starting");
     GameManager game_manager;
     game_manager_init(&game_manager);

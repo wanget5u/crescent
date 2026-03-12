@@ -64,7 +64,7 @@ Panel* editor_view_create(Player* player_ref, Shader grid_shader, i32 cam_pos_lo
     data->player_ref = player_ref;
     data->grid_shader = grid_shader;
     data->grid_cam_pos_loc = cam_pos_loc;
-    panel->title = "Scene Editor";
+    panel->title = "Scene";
     panel->data = data;
     panel->update = editor_view_update;
     panel->render = editor_view_render;

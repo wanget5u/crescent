@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.h"
+#include "ui_manager.h"
 #include "input_manager.h"
 #include "player.h"
 #include "game_view.h"
@@ -20,13 +21,12 @@ typedef enum {
 
 typedef struct {
 	GameState game_state;
+	UIManager user_interface;
 	f32 delta_time;
 	InputManager input;
 	Player player;
 	ViewFocus current_focus;
-	Font font;
 	Shader grid_shader;
-	DockNode* ui_root;
 	i32 previous_screen_width;
 	i32 previous_screen_height;
 	i32 grid_cam_pos;

@@ -38,6 +38,7 @@ typedef Vector3 Vec3;
 #define TEXT_COLOR DARKGRAY
 #define BG_COLOR GRAY
 #define GRID_COLOR LIGHTGRAY
+#define VIEWPORT_FOCUS_COLOR WHITE
 
 #define FONT_SIZE (25.0f)
 #define FONT_SPACING (1.0f)
@@ -52,5 +53,5 @@ typedef Vector3 Vec3;
 
 #define CAMERA_FOV (70.0f)
 
-#define MOUSE_SENS (0.0015f)
+#define MOUSE_SENS (0.0035f)
 #define SCROLL_SPEED (4)

@@ -7,21 +7,30 @@ DockNode* dock_node_create_split(DockNodeType type, f32 ratio, DockNode* a, Dock
     node->split_ratio = ratio;
     node->child_a = a;
     node->child_b = b;
-    node->content = NULL;
+    node->tab_count += 1;
+    node->active_tab = 0;
     node->is_dragging = false;
     return node;
 }
 
-DockNode* dock_node_create_leaf(Panel* content, i32 width, i32 height) {
+DockNode* dock_node_create_leaf(i32 width, i32 height) {
     DockNode* node = (DockNode*)malloc(sizeof(DockNode));
     node->type = DOCK_LEAF;
-    node->content = content;
+    node->tab_count = 0;
+    node->active_tab = 0;
     node->is_focused = false;
     width = (width <= 0) ? 1 : width;
     height = (height <= 0) ? 1 : height;
     node->render_target = LoadRenderTexture(width, height);
     SetTextureFilter(node->render_target.texture, BASE_TEXTURE_FILTER);
     return node;
+}
+
+void dock_node_add_tab(DockNode* node, Panel* panel) {
+    if (node->type == DOCK_LEAF && node->tab_count < MAX_TABS) {
+        node->tabs[node->tab_count] = panel;
+        node->tab_count++;
+    }
 }
 
 void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
@@ -57,14 +66,29 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
     }
 }
 
-void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor) {
+void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font) {
     if (!node) {
         return;
     }
     if (node->type == DOCK_LEAF) {
         Vec2 mouse_pos = GetMousePosition();
+        f32 tab_height = 35.0f;
+        f32 current_x = node->bounds.x;
+        for (i32 x = 0; x < node->tab_count; x++) {
+            f32 current_tab_width = 100.0f;
+            if (node->tabs[x]->title) {
+                Vec2 text_size = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING);
+                current_tab_width = text_size.x + 20.0f;
+            }
+            Rectangle tab_hitbox = {current_x, node->bounds.y, current_tab_width, tab_height};
+            if (CheckCollisionPointRec(mouse_pos, tab_hitbox) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                node->active_tab = x;
+            }
+            current_x += current_tab_width + 2.0f;
+        }
+        Rectangle content_bounds = {node->bounds.x, node->bounds.y + tab_height, node->bounds.width, node->bounds.height - tab_height};
         if (input_is_pressed(input, ACTION_FOCUS)) {
-            if (!IsCursorHidden() && CheckCollisionPointRec(mouse_pos, node->bounds)) {
+            if (!IsCursorHidden() && CheckCollisionPointRec(mouse_pos, content_bounds)) {
                 node->is_focused = true;
                 node->saved_mouse_pos = mouse_pos;
                 DisableCursor();
@@ -75,8 +99,8 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, 
             EnableCursor();
             SetMousePosition((i32)node->saved_mouse_pos.x, (i32)node->saved_mouse_pos.y);
         }
-        if (node->content && node->content->update) {
-            node->content->update(node->content, input, node->is_focused, delta_time);
+        if (node->tab_count > 0 && node->tabs[node->active_tab]->update) {
+            node->tabs[node->active_tab]->update(node->tabs[node->active_tab], input, node->is_focused, delta_time);
         }
     } else {
         Rectangle splitter_rectangle;
@@ -112,8 +136,8 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, 
             node->split_ratio = Clamp(new_ratio, 0.1f, 0.9f);
             dock_node_resize_tree(node, node->bounds);
         }
-        dock_node_update_tree(node->child_a, input, delta_time, current_cursor);
-        dock_node_update_tree(node->child_b, input, delta_time, current_cursor);
+        dock_node_update_tree(node->child_a, input, delta_time, current_cursor, font);
+        dock_node_update_tree(node->child_b, input, delta_time, current_cursor, font);
     }
 }
 
@@ -124,8 +148,8 @@ void dock_node_render_tree(DockNode* node) {
     if (node->type == DOCK_LEAF) {
         BeginTextureMode(node->render_target);
         ClearBackground(BG_COLOR);
-        if (node->content && node->content->render) {
-            node->content->render(node->content);
+        if (node->tab_count > 0 && node->tabs[node->active_tab]->render) {
+            node->tabs[node->active_tab]->render(node->tabs[node->active_tab]);
         }
         EndTextureMode();
     } else {
