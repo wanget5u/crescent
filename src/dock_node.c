@@ -26,11 +26,72 @@ DockNode* dock_node_create_leaf(i32 width, i32 height) {
     return node;
 }
 
+DockNode* dock_node_prune_empty(DockNode* node) {
+    if (!node) {
+        return NULL;
+    }
+    if (node->type == DOCK_LEAF) {
+        if (node->tab_count == 0) {
+            if (node->render_target.id > 0) {
+                UnloadRenderTexture(node->render_target);
+            }
+            free(node);
+            return NULL;
+        }
+        return node;
+    } else {
+        node->child_a = dock_node_prune_empty(node->child_a);
+        node->child_b = dock_node_prune_empty(node->child_b);
+        if (node->child_a == NULL && node->child_b != NULL) {
+            DockNode* survivor = node->child_b;
+            free(node);
+            return survivor;
+        } else if (node->child_b == NULL && node->child_a != NULL) {
+            DockNode* survivor = node->child_a;
+            free(node);
+            return survivor;
+        } else if (node->child_a == NULL && node->child_b == NULL) {
+            free(node);
+            return NULL;
+        }
+        return node;
+    }
+}
+
+DockNode* dock_node_get_first_leaf(DockNode* node) {
+    if (!node) {
+        return NULL;
+    }
+    if (node->type == DOCK_LEAF) {
+        return node;
+    }
+    DockNode* left = dock_node_get_first_leaf(node->child_a);
+    if (left) {
+        return left;
+    }
+    return dock_node_get_first_leaf(node->child_b);
+}
+
 void dock_node_add_tab(DockNode* node, Panel* panel) {
     if (node->type == DOCK_LEAF && node->tab_count < MAX_TABS) {
         node->tabs[node->tab_count] = panel;
         node->tab_count++;
     }
+}
+
+Panel* dock_node_remove_tab(DockNode* node, i32 tab_index) {
+    if (node->type != DOCK_LEAF || tab_index < 0 || tab_index >= node->tab_count) {
+        return NULL;
+    }
+    Panel* extracted_panel = node->tabs[tab_index];
+    for (i32 x = tab_index; x < node->tab_count - 1; x++) {
+        node->tabs[x] = node->tabs[x + 1];
+    }
+    node->tab_count--;
+    if (node->active_tab >= node->tab_count && node->tab_count > 0) {
+        node->active_tab = node->tab_count - 1;
+    }
+    return extracted_panel;
 }
 
 void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
@@ -41,7 +102,6 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
     if (node->type == DOCK_LEAF) {
         i32 width = (node->bounds.width <= 0) ? 1 : (i32)node->bounds.width;
         i32 height = (node->bounds.height <= 0) ? 1 : (i32)node->bounds.height;
-        // check if the dimensions actually changed
         if (node->render_target.texture.width != width || node->render_target.texture.height != height) {
             if (node->render_target.id > 0) {
                 UnloadRenderTexture(node->render_target);
@@ -66,7 +126,7 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
     }
 }
 
-void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font) {
+void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font, DockNode** focused_leaf, Panel** out_dragged_tab) {
     if (!node) {
         return;
     }
@@ -81,8 +141,15 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, 
                 current_tab_width = text_size.x + 20.0f;
             }
             Rectangle tab_hitbox = {current_x, node->bounds.y, current_tab_width, tab_height};
-            if (CheckCollisionPointRec(mouse_pos, tab_hitbox) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                node->active_tab = x;
+            if (CheckCollisionPointRec(mouse_pos, tab_hitbox)) {
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    node->active_tab = x;
+                    *focused_leaf = node;
+                }
+                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && Vector2Length(GetMouseDelta()) > 0.1f) {
+                    *out_dragged_tab = dock_node_remove_tab(node, x);
+                    break;
+                }
             }
             current_x += current_tab_width + 2.0f;
         }
@@ -92,6 +159,7 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, 
                 node->is_focused = true;
                 node->saved_mouse_pos = mouse_pos;
                 DisableCursor();
+                *focused_leaf = node;
             }
         }
         if (input_is_released(input, ACTION_FOCUS) && node->is_focused) {
@@ -136,8 +204,8 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, 
             node->split_ratio = Clamp(new_ratio, 0.1f, 0.9f);
             dock_node_resize_tree(node, node->bounds);
         }
-        dock_node_update_tree(node->child_a, input, delta_time, current_cursor, font);
-        dock_node_update_tree(node->child_b, input, delta_time, current_cursor, font);
+        dock_node_update_tree(node->child_a, input, delta_time, current_cursor, font, focused_leaf, out_dragged_tab);
+        dock_node_update_tree(node->child_b, input, delta_time, current_cursor, font, focused_leaf, out_dragged_tab);
     }
 }
 

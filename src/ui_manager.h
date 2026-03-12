@@ -5,10 +5,25 @@
 #include "input_manager.h"
 #include "player.h"
 
+typedef enum {
+    DROP_NONE,      
+    DROP_CENTER,    // Adds to the target leaf's tab array
+    DROP_LEFT,      // Splits the leaf horizontally, places tab on the left
+    DROP_RIGHT,     // Splits the leaf horizontally, places tab on the right
+    DROP_TOP,       // Splits the leaf vertically  , places tab on top
+    DROP_BOTTOM     // Splits the leaf vertically  , places tab on bottom
+} DropZone;
+
 typedef struct {
     DockNode* root;
     Font font;
     Player* player_ref;
+    DockNode* focused_leaf;
+
+    Panel* dragging_tab;
+    DockNode* hover_target;
+    DropZone current_drop_zone;
+    Rectangle drop_preview_rectangle;
 } UIManager;
 
 void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shader, i32 grid_cam_pos);

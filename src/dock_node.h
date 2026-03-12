@@ -30,7 +30,10 @@ struct DockNode {
 
 DockNode* dock_node_create_split(DockNodeType type, f32 ratio, DockNode* a, DockNode* b);
 DockNode* dock_node_create_leaf(i32 width, i32 height);
+DockNode* dock_node_prune_empty(DockNode* node);
+DockNode* dock_node_get_first_leaf(DockNode* node);
 void dock_node_add_tab(DockNode* node, Panel* panel);
+Panel* dock_node_remove_tab(DockNode* node, i32 tab_index);
 void dock_node_resize_tree(DockNode* node, Rectangle new_bounds);
-void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font);
+void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font, DockNode** focused_leaf, Panel** out_dragged_tab);
 void dock_node_render_tree(DockNode* node);
