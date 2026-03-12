@@ -126,86 +126,86 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
     }
 }
 
-void dock_node_update_tree(DockNode* node, InputManager* input, f32 delta_time, i32* current_cursor, Font font, DockNode** focused_leaf, Panel** out_dragged_tab) {
+static void update_leaf_tabs(DockNode* node, Vec2 mouse_pos, Font font, DockNode** focused_leaf, Panel** out_dragged_tab) {
+    f32 tab_height = 35.0f;
+    f32 current_x = node->bounds.x;
+    for (i32 x = 0; x < node->tab_count; x++) {
+        f32 tab_width = 100.0f;
+        if (node->tabs[x]->title) {
+            tab_width = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
+        }
+        Rectangle hitbox = {current_x, node->bounds.y, tab_width, tab_height};
+        if (CheckCollisionPointRec(mouse_pos, hitbox)) {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                node->active_tab = x;
+                *focused_leaf = node;
+            }
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && Vector2Length(GetMouseDelta()) > 0.1f) {
+                *out_dragged_tab = dock_node_remove_tab(node, x);
+                break;
+            }
+        }
+        current_x += tab_width + 2.0f;
+    }
+}
+
+static void update_leaf_focus(DockNode* node, Vec2 mouse_pos, InputManager* input, DockNode** focused_leaf) {
+    f32 tab_height = 35.0f;
+    Rectangle content_bounds = {node->bounds.x, node->bounds.y + tab_height, node->bounds.width, node->bounds.height - tab_height};
+    if (input_is_pressed(input, ACTION_FOCUS) && !IsCursorHidden() && CheckCollisionPointRec(mouse_pos, content_bounds)) {
+        node->is_focused = true;
+        node->saved_mouse_pos = mouse_pos;
+        DisableCursor();
+        *focused_leaf = node;
+    }
+    if (input_is_released(input, ACTION_FOCUS) && node->is_focused) {
+        node->is_focused = false;
+        EnableCursor();
+        SetMousePosition((i32)node->saved_mouse_pos.x, (i32)node->saved_mouse_pos.y);
+    }
+}
+
+static void update_splitter(DockNode* node, Vec2 mouse_pos, i32* current_cursor) {
+    Rectangle hitbox;
+    if (node->type == DOCK_SPLIT_HORIZONTAL) {
+        f32 split_x = node->bounds.x + (node->bounds.width * node->split_ratio);
+        hitbox = (Rectangle){split_x - (DOCK_SPLITTER_THICKNESS / 2.0f), node->bounds.y, DOCK_SPLITTER_THICKNESS, node->bounds.height};
+    } else {
+        f32 split_y = node->bounds.y + (node->bounds.height * node->split_ratio);
+        hitbox = (Rectangle){node->bounds.x, split_y - (DOCK_SPLITTER_THICKNESS / 2.0f), node->bounds.width, DOCK_SPLITTER_THICKNESS};
+    }
+    bool hovering = CheckCollisionPointRec(mouse_pos, hitbox);
+    if (hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        node->is_dragging = true;
+    }
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        node->is_dragging = false;
+    }
+    if (hovering || node->is_dragging) {
+        *current_cursor = (node->type == DOCK_SPLIT_HORIZONTAL) ? MOUSE_CURSOR_RESIZE_EW : MOUSE_CURSOR_RESIZE_NS;
+    }
+    if (node->is_dragging) {
+        f32 new_ratio = (node->type == DOCK_SPLIT_HORIZONTAL) ? (mouse_pos.x - node->bounds.x) / node->bounds.width : (mouse_pos.y - node->bounds.y) / node->bounds.height;
+        node->split_ratio = Clamp(new_ratio, 0.1f, 0.9f);
+        dock_node_resize_tree(node, node->bounds);
+    }
+}
+
+void dock_node_update_tree(DockNode* node, InputManager* input, f32 dt, i32* current_cursor, Font font, DockNode** focused_leaf, Panel** out_dragged_tab) {
     if (!node) {
         return;
     }
     if (node->type == DOCK_LEAF) {
         Vec2 mouse_pos = GetMousePosition();
-        f32 tab_height = 35.0f;
-        f32 current_x = node->bounds.x;
-        for (i32 x = 0; x < node->tab_count; x++) {
-            f32 current_tab_width = 100.0f;
-            if (node->tabs[x]->title) {
-                Vec2 text_size = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING);
-                current_tab_width = text_size.x + 20.0f;
-            }
-            Rectangle tab_hitbox = {current_x, node->bounds.y, current_tab_width, tab_height};
-            if (CheckCollisionPointRec(mouse_pos, tab_hitbox)) {
-                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                    node->active_tab = x;
-                    *focused_leaf = node;
-                }
-                if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && Vector2Length(GetMouseDelta()) > 0.1f) {
-                    *out_dragged_tab = dock_node_remove_tab(node, x);
-                    break;
-                }
-            }
-            current_x += current_tab_width + 2.0f;
-        }
-        Rectangle content_bounds = {node->bounds.x, node->bounds.y + tab_height, node->bounds.width, node->bounds.height - tab_height};
-        if (input_is_pressed(input, ACTION_FOCUS)) {
-            if (!IsCursorHidden() && CheckCollisionPointRec(mouse_pos, content_bounds)) {
-                node->is_focused = true;
-                node->saved_mouse_pos = mouse_pos;
-                DisableCursor();
-                *focused_leaf = node;
-            }
-        }
-        if (input_is_released(input, ACTION_FOCUS) && node->is_focused) {
-            node->is_focused = false;
-            EnableCursor();
-            SetMousePosition((i32)node->saved_mouse_pos.x, (i32)node->saved_mouse_pos.y);
-        }
+        update_leaf_tabs(node, mouse_pos, font, focused_leaf, out_dragged_tab);
+        update_leaf_focus(node, mouse_pos, input, focused_leaf);
         if (node->tab_count > 0 && node->tabs[node->active_tab]->update) {
-            node->tabs[node->active_tab]->update(node->tabs[node->active_tab], input, node->is_focused, delta_time);
+            node->tabs[node->active_tab]->update(node->tabs[node->active_tab], input, node->is_focused, dt);
         }
     } else {
-        Rectangle splitter_rectangle;
-        if (node->type == DOCK_SPLIT_HORIZONTAL) {
-            f32 split_x = node->bounds.x + (node->bounds.width * node->split_ratio);
-            splitter_rectangle = (Rectangle){split_x - (DOCK_SPLITTER_THICKNESS / 2.0f), node->bounds.y, DOCK_SPLITTER_THICKNESS, node->bounds.height};
-        } else {
-            f32 split_y = node->bounds.y + (node->bounds.height * node->split_ratio);
-            splitter_rectangle = (Rectangle){node->bounds.x, split_y - (DOCK_SPLITTER_THICKNESS / 2.0f), node->bounds.width, DOCK_SPLITTER_THICKNESS};
-        }
-        Vec2 mouse_pos = GetMousePosition();
-        bool is_hovering = CheckCollisionPointRec(mouse_pos, splitter_rectangle);
-        if (is_hovering && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            node->is_dragging = true;
-        }
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-            node->is_dragging = false;
-        }
-        if (is_hovering || node->is_dragging) {
-            if (node->type == DOCK_SPLIT_HORIZONTAL) {
-                *current_cursor = MOUSE_CURSOR_RESIZE_EW;
-            } else {
-                *current_cursor = MOUSE_CURSOR_RESIZE_NS;
-            }
-        }
-        if (node->is_dragging) {
-            f32 new_ratio;
-            if (node->type == DOCK_SPLIT_HORIZONTAL) {
-                new_ratio = (mouse_pos.x - node->bounds.x) / node->bounds.width;
-            } else {
-                new_ratio = (mouse_pos.y - node->bounds.y) / node->bounds.height;
-            }
-            node->split_ratio = Clamp(new_ratio, 0.1f, 0.9f);
-            dock_node_resize_tree(node, node->bounds);
-        }
-        dock_node_update_tree(node->child_a, input, delta_time, current_cursor, font, focused_leaf, out_dragged_tab);
-        dock_node_update_tree(node->child_b, input, delta_time, current_cursor, font, focused_leaf, out_dragged_tab);
+        update_splitter(node, GetMousePosition(), current_cursor);
+        dock_node_update_tree(node->child_a, input, dt, current_cursor, font, focused_leaf, out_dragged_tab);
+        dock_node_update_tree(node->child_b, input, dt, current_cursor, font, focused_leaf, out_dragged_tab);
     }
 }
 

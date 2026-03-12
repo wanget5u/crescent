@@ -2,59 +2,56 @@
 #include "game_view.h"
 #include "editor_view.h"
 
+static void draw_leaf_tabs(DockNode* node, Font font) {
+    f32 tab_height = 35.0f;
+    f32 current_x = node->bounds.x;
+    DrawRectangle(node->bounds.x, node->bounds.y, node->bounds.width, tab_height, ColorAlpha(BLACK, 0.8f));
+    for (i32 x = 0; x < node->tab_count; x++) {
+        f32 tab_width = 100.0f;
+        if (node->tabs[x]->title) {
+            tab_width = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
+        }
+        Color tab_color = (x == node->active_tab) ? GRAY : DARKGRAY;
+        DrawRectangleRec((Rectangle){current_x, node->bounds.y, tab_width, tab_height}, tab_color);
+        if (node->tabs[x]->title) {
+            DrawTextEx(font, node->tabs[x]->title, (Vec2){current_x + 8.0f, node->bounds.y + 8.0f}, FONT_SIZE, FONT_SPACING, RAYWHITE);
+        }
+        current_x += tab_width + 2.0f;
+    }
+
+    if (node->is_focused) {
+        f32 inset = 1.0f; 
+        Rectangle highlight = {
+            node->bounds.x + inset, node->bounds.y + tab_height + inset,
+            node->bounds.width - (inset * 2.0f), node->bounds.height - tab_height - (inset * 2.0f)
+        };
+        DrawRectangleLinesEx(highlight, 3.0f, WHITE);
+    }
+}
+
+static void draw_splitter(DockNode* node) {
+    f32 visual_thickness = 2.0f;
+    if (node->type == DOCK_SPLIT_HORIZONTAL) {
+        f32 split_x = node->bounds.x + (node->bounds.width * node->split_ratio);
+        DrawRectangle((i32)(split_x - (visual_thickness / 2.0f)), (i32)node->bounds.y, (i32)visual_thickness, (i32)node->bounds.height, DOCK_SPLITTER_COLOR);
+    } else {
+        f32 split_y = node->bounds.y + (node->bounds.height * node->split_ratio);
+        DrawRectangle((i32)node->bounds.x, (i32)(split_y - (visual_thickness / 2.0f)), (i32)node->bounds.width, (i32)visual_thickness, DOCK_SPLITTER_COLOR);
+    }
+}
+
 static void draw_dock_tree(DockNode* node, Font font) {
     if (!node) {
         return;
     }
     if (node->type == DOCK_LEAF) {
         Rectangle source_rect = {0.0f, 0.0f, (f32)node->render_target.texture.width, (f32)-node->render_target.texture.height};
-        Vec2 position = {node->bounds.x, node->bounds.y};
-        DrawTextureRec(node->render_target.texture, source_rect, position, WHITE);
-        f32 tab_height = 35.0f;
-        if (node->tab_count == 0) {
-            DrawRectangle(node->bounds.x, node->bounds.y, node->bounds.width, tab_height, ColorAlpha(BLACK, 0.4f));
-            DrawTextEx(font, "Empty", (Vec2){node->bounds.x + 10, node->bounds.y + 8}, FONT_SIZE, FONT_SPACING, GRAY);
-            return;
-        }
-        f32 current_x = node->bounds.x;
-        DrawRectangle(node->bounds.x, node->bounds.y, node->bounds.width, tab_height, ColorAlpha(BLACK, 0.8f));
-        for (i32 x = 0; x < node->tab_count; x++) {
-            f32 current_tab_width = 100.0f;
-            if (node->tabs[x]->title) {
-                Vec2 text_size = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING);
-                current_tab_width = text_size.x + 20.0f;
-            }
-            Rectangle tab_bg = {current_x, node->bounds.y, current_tab_width, tab_height};
-            Color tab_color = (x == node->active_tab) ? GRAY : DARKGRAY;
-            DrawRectangleRec(tab_bg, tab_color);
-            if (node->tabs[x]->title) {
-                Vec2 text_pos = {current_x + 8.0f, node->bounds.y + 8.0f};
-                DrawTextEx(font, node->tabs[x]->title, text_pos, FONT_SIZE, FONT_SPACING, RAYWHITE);
-            }
-            current_x += current_tab_width + 2.0f;
-        }
-        if (node->is_focused) {
-            f32 inset = 1.0f; 
-            Rectangle highlight_rect = {
-                node->bounds.x + inset,
-                node->bounds.y + tab_height + inset,
-                node->bounds.width - (inset * 2.0f),
-                node->bounds.height - tab_height - (inset * 2.0f)
-            };
-            DrawRectangleLinesEx(highlight_rect, 3.0f, WHITE);
-        }
+        DrawTextureRec(node->render_target.texture, source_rect, (Vec2){node->bounds.x, node->bounds.y}, WHITE);
+        draw_leaf_tabs(node, font);
     } else {
         draw_dock_tree(node->child_a, font);
         draw_dock_tree(node->child_b, font);
-        Color splitter_color = DOCK_SPLITTER_COLOR;
-        f32 visual_thickness = 2.0f;
-        if (node->type == DOCK_SPLIT_HORIZONTAL) {
-            f32 split_x = node->bounds.x + (node->bounds.width * node->split_ratio);
-            DrawRectangle((i32)(split_x - (visual_thickness / 2.0f)), (i32)node->bounds.y, (i32)visual_thickness, (i32)node->bounds.height, splitter_color);
-        } else if (node->type == DOCK_SPLIT_VERTICAL) {
-            f32 split_y = node->bounds.y + (node->bounds.height * node->split_ratio);
-            DrawRectangle((i32)node->bounds.x, (i32)(split_y - (visual_thickness / 2.0f)), (i32)node->bounds.width, (i32)visual_thickness, splitter_color);
-        }
+        draw_splitter(node);
     }
 }
 
@@ -101,98 +98,96 @@ void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shad
     ui_manager_resize(user_interface, BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT);
 }
 
-void ui_manager_update(UIManager* user_interface, InputManager* input, f32 delta_time) {
-    i32 desired_mouse_cursor = MOUSE_CURSOR_DEFAULT;
-    if (user_interface->dragging_tab != NULL) {
-        Vec2 mouse_pos = GetMousePosition();
-        user_interface->hover_target = get_hovered_leaf(user_interface->root, mouse_pos);
-        if (user_interface->hover_target != NULL) {
-            Rectangle bounds = user_interface->hover_target->bounds;
-            f32 edge_x = bounds.width * 0.3f;
-            f32 edge_y = bounds.height * 0.3f;
-            if (mouse_pos.x < bounds.x + edge_x) {
-                    user_interface->current_drop_zone = DROP_LEFT;
-                    user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y, bounds.width / 2.0f, bounds.height};
-                } else if (mouse_pos.x > bounds.x + bounds.width - edge_x) {
-                    user_interface->current_drop_zone = DROP_RIGHT;
-                    user_interface->drop_preview_rectangle = (Rectangle){bounds.x + bounds.width / 2.0f, bounds.y, bounds.width / 2.0f, bounds.height};
-                } else if (mouse_pos.y < bounds.y + edge_y) {
-                    user_interface->current_drop_zone = DROP_TOP;
-                    user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y, bounds.width, bounds.height / 2.0f};
-                } else if (mouse_pos.y > bounds.y + bounds.height - edge_y) {
-                    user_interface->current_drop_zone = DROP_BOTTOM;
-                    user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y + bounds.height / 2.0f, bounds.width, bounds.height / 2.0f};
-                } else {
-                    user_interface->current_drop_zone = DROP_CENTER;
-                    user_interface->drop_preview_rectangle = bounds;
-                }
-        } else {
-            user_interface->current_drop_zone = DROP_NONE;
+static void handle_drag_preview(UIManager* user_interface, Vec2 mouse_pos) {
+    user_interface->hover_target = get_hovered_leaf(user_interface->root, mouse_pos);
+    if (!user_interface->hover_target) {
+        user_interface->current_drop_zone = DROP_NONE;
+        return;
+    }
+    Rectangle bounds = user_interface->hover_target->bounds;
+    f32 edge_x = bounds.width * 0.3f;
+    f32 edge_y = bounds.height * 0.3f;
+    if (mouse_pos.x < bounds.x + edge_x) {
+        user_interface->current_drop_zone = DROP_LEFT;
+        user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y, bounds.width / 2.0f, bounds.height};
+    } else if (mouse_pos.x > bounds.x + bounds.width - edge_x) {
+        user_interface->current_drop_zone = DROP_RIGHT;
+        user_interface->drop_preview_rectangle = (Rectangle){bounds.x + bounds.width / 2.0f, bounds.y, bounds.width / 2.0f, bounds.height};
+    } else if (mouse_pos.y < bounds.y + edge_y) {
+        user_interface->current_drop_zone = DROP_TOP;
+        user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y, bounds.width, bounds.height / 2.0f};
+    } else if (mouse_pos.y > bounds.y + bounds.height - edge_y) {
+        user_interface->current_drop_zone = DROP_BOTTOM;
+        user_interface->drop_preview_rectangle = (Rectangle){bounds.x, bounds.y + bounds.height / 2.0f, bounds.width, bounds.height / 2.0f};
+    } else {
+        user_interface->current_drop_zone = DROP_CENTER;
+        user_interface->drop_preview_rectangle = bounds;
+    }
+}
+
+static void execute_tab_drop(UIManager* user_interface) {
+    DockNode* target = user_interface->hover_target ? user_interface->hover_target : user_interface->focused_leaf;
+    if (!target) {
+        return;
+    }
+    if (user_interface->current_drop_zone == DROP_CENTER || user_interface->current_drop_zone == DROP_NONE) {
+        dock_node_add_tab(target, user_interface->dragging_tab);
+    } else {
+        DockNode* old_contents = dock_node_create_leaf(1, 1);
+        for (i32 i = 0; i < target->tab_count; i++) old_contents->tabs[i] = target->tabs[i];
+        old_contents->tab_count = target->tab_count;
+        old_contents->active_tab = target->active_tab;
+        DockNode* new_contents = dock_node_create_leaf(1, 1);
+        dock_node_add_tab(new_contents, user_interface->dragging_tab);
+        if (target->render_target.id > 0) {
+            UnloadRenderTexture(target->render_target);
         }
+        target->tab_count = 0;
+        target->split_ratio = 0.5f;
+        if (user_interface->current_drop_zone == DROP_LEFT || user_interface->current_drop_zone == DROP_RIGHT) {
+            target->type = DOCK_SPLIT_HORIZONTAL;
+            target->child_a = (user_interface->current_drop_zone == DROP_LEFT) ? new_contents : old_contents;
+            target->child_b = (user_interface->current_drop_zone == DROP_LEFT) ? old_contents : new_contents;
+        } else {
+            target->type = DOCK_SPLIT_VERTICAL;
+            target->child_a = (user_interface->current_drop_zone == DROP_TOP) ? new_contents : old_contents;
+            target->child_b = (user_interface->current_drop_zone == DROP_TOP) ? old_contents : new_contents;
+        }
+        dock_node_resize_tree(target, target->bounds);
+    }
+    user_interface->dragging_tab = NULL;
+    user_interface->current_drop_zone = DROP_NONE;
+}
+
+static void handle_normal_update(UIManager* user_interface, InputManager* input, f32 dt, i32* cursor) {
+    Panel* freshly_dragged = NULL;
+    dock_node_update_tree(user_interface->root, input, dt, cursor, user_interface->font, &user_interface->focused_leaf, &freshly_dragged);
+    if (freshly_dragged) {
+        user_interface->dragging_tab = freshly_dragged;
+        user_interface->root = dock_node_prune_empty(user_interface->root);
+        if (!user_interface->root) {
+            user_interface->root = dock_node_create_leaf(GetScreenWidth(), GetScreenHeight());
+        }
+        ui_manager_resize(user_interface, (f32)GetScreenWidth(), (f32)GetScreenHeight());
+        user_interface->focused_leaf = dock_node_get_first_leaf(user_interface->root);
+    }
+    if (IsKeyPressed(KEY_TAB) && user_interface->focused_leaf && user_interface->focused_leaf->tab_count > 1) {
+        user_interface->focused_leaf->active_tab = (user_interface->focused_leaf->active_tab + 1) % user_interface->focused_leaf->tab_count;
+    }
+}
+
+void ui_manager_update(UIManager* user_interface, InputManager* input, f32 delta_time) {
+    i32 desired_cursor = MOUSE_CURSOR_DEFAULT;
+    if (user_interface->dragging_tab) {
+        handle_drag_preview(user_interface, GetMousePosition());
         if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-            DockNode* target = user_interface->hover_target;
-            if (target == NULL) {
-                target = user_interface->focused_leaf;
-                user_interface->current_drop_zone = DROP_CENTER;
-            }
-            if (user_interface->current_drop_zone == DROP_CENTER) {
-                dock_node_add_tab(target, user_interface->dragging_tab);
-            } else {
-                DockNode* old_contents = dock_node_create_leaf(1, 1);
-                for (i32 x = 0; x < target->tab_count; x++) {
-                    old_contents->tabs[x] = target->tabs[x];
-                }
-                old_contents->tab_count = target->tab_count;
-                old_contents->active_tab = target->active_tab;
-                DockNode* new_contents = dock_node_create_leaf(1, 1);
-                dock_node_add_tab(new_contents, user_interface->dragging_tab);
-                if (target->render_target.id > 0) {
-                    UnloadRenderTexture(target->render_target);
-                }
-                target->tab_count = 0; 
-                target->split_ratio = 0.5f;
-                if (user_interface->current_drop_zone == DROP_LEFT) {
-                    target->type = DOCK_SPLIT_HORIZONTAL;
-                    target->child_a = new_contents;
-                    target->child_b = old_contents;
-                } else if (user_interface->current_drop_zone == DROP_RIGHT) {
-                    target->type = DOCK_SPLIT_HORIZONTAL;
-                    target->child_a = old_contents;
-                    target->child_b = new_contents;
-                } else if (user_interface->current_drop_zone == DROP_TOP) {
-                    target->type = DOCK_SPLIT_VERTICAL;
-                    target->child_a = new_contents;
-                    target->child_b = old_contents;
-                } else if (user_interface->current_drop_zone == DROP_BOTTOM) {
-                    target->type = DOCK_SPLIT_VERTICAL;
-                    target->child_a = old_contents;
-                    target->child_b = new_contents;
-                }
-                dock_node_resize_tree(target, target->bounds);
-            }
-            user_interface->dragging_tab = NULL;
-            user_interface->current_drop_zone = DROP_NONE;
+            execute_tab_drop(user_interface);
         }
     } else {
-        Panel* freshly_dragged_tab = NULL;
-        dock_node_update_tree(user_interface->root, input, delta_time, &desired_mouse_cursor, user_interface->font, &user_interface->focused_leaf, &freshly_dragged_tab);
-        if (freshly_dragged_tab != NULL) {
-            user_interface->dragging_tab = freshly_dragged_tab;
-            user_interface->root = dock_node_prune_empty(user_interface->root);
-            if (user_interface->root == NULL) {
-                user_interface->root = dock_node_create_leaf(GetScreenWidth(), GetScreenHeight());
-            }
-            ui_manager_resize(user_interface, (f32)GetScreenWidth(), (f32)GetScreenHeight());
-            user_interface->focused_leaf = dock_node_get_first_leaf(user_interface->root);
-        }
-        if (IsKeyPressed(KEY_TAB) && user_interface->focused_leaf != NULL) {
-            if (user_interface->focused_leaf->tab_count > 1) {
-                user_interface->focused_leaf->active_tab = (user_interface->focused_leaf->active_tab + 1) % user_interface->focused_leaf->tab_count;
-            }
-        }
+        handle_normal_update(user_interface, input, delta_time, &desired_cursor);
     }
     if (!IsCursorHidden()) {
-        SetMouseCursor(desired_mouse_cursor);
+        SetMouseCursor(desired_cursor);
     }
 }
 
