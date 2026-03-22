@@ -45,15 +45,20 @@ foreach ($file in $game_files) {
 if ($needs_linking -or !(Test-Path "bin/crescent.exe")) {
     Write-Host "[~] linking crescent.exe..."
     $all_objs = Get-ChildItem "build/*.o" | ForEach-Object { $_.FullName }
-    
-    & clang++ $all_objs $libs -o bin/crescent.exe
-    
+
+    & clang $all_objs $libs -o bin/crescent.exe
+
     if ($LASTEXITCODE -ne 0) {
         Write-Host "linking failed."
         exit
     }
 } else {
     Write-Host "[v] code up to date, skipping compilation."
+}
+
+if (Test-Path "assets") {
+    Write-Host "[~] syncing assets..."
+    $null = robocopy "assets" "bin/assets" /MIR /NJH /NJS /NFL /NDL /NC /NS /NP
 }
 
 # execution

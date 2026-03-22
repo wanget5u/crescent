@@ -1,0 +1,6 @@
+-Iinclude
+-Iinclude/raylib
+-D_CRT_SECURE_NO_WARNINGS
+-DIMGUI_HAS_DOCK
+-Wall
+-Wextra

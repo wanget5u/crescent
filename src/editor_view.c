@@ -1,7 +1,10 @@
+#include <limits.h>
 #include <stdlib.h>
+#include <float.h>
 #include "graphics_utils.h"
 #include "editor_view.h"
 #include "game_camera.h"
+#include "raylib.h"
 
 typedef struct {
     GameCamera camera;
@@ -26,7 +29,8 @@ typedef struct {
 typedef struct {
     Vec2 pos;
     f32 depth;
-    Color color;
+    Color fillColor;
+    Color outlineColor;
     const char* label;
     i32 id;
     bool is_negative;
@@ -38,44 +42,55 @@ typedef struct {
     f32 line_length;
     f32 tip_radius;
     f32 bg_radius;
+    f32 dot_radius;
     f32 line_thickness;
 } GizmoStyle;
 
 static const GizmoStyle GIZMO_STYLE = {
     .margin_right = 70.0f,
     .margin_top = 70.0f,
-    .line_length = 35.0f,
-    .tip_radius = 8.0f,
-    .bg_radius = 43.0f,
+    .line_length = 40.0f,
+    .tip_radius = 10.0f,
+    .bg_radius = 50.0f,
+    .dot_radius = 2.0f,
     .line_thickness = 2.0f
 };
 
+static inline Color ColorScale(Color color, f32 factor) {
+    return (Color) {
+      (unsigned char)(color.r * factor),
+      (unsigned char)(color.g * factor),
+      (unsigned char)(color.b * factor),
+      color.a
+    };
+}
+
 static void calculate_gizmo_axes(Camera3D camera, GizmoAxis* out_axes) {
     Matrix view_mat = GetCameraMatrix(camera);
-    f32 length = GIZMO_STYLE.line_length; 
+    f32 length = GIZMO_STYLE.line_length;
     Vec2 axis_x = Vector2Scale((Vec2){view_mat.m0, -view_mat.m1}, length);
     Vec2 axis_y = Vector2Scale((Vec2){view_mat.m4, -view_mat.m5}, length);
     Vec2 axis_z = Vector2Scale((Vec2){view_mat.m8, -view_mat.m9}, length);
-    out_axes[0] = (GizmoAxis){axis_x, view_mat.m2, RED, "X", 0, false};
-    out_axes[1] = (GizmoAxis){axis_y, view_mat.m6, GREEN, "Y", 1, false};
-    out_axes[2] = (GizmoAxis){axis_z, view_mat.m10, BLUE, "Z", 2, false};
-    out_axes[3] = (GizmoAxis){Vector2Negate(axis_x), -view_mat.m2, RED, "-X", 3, true};
-    out_axes[4] = (GizmoAxis){Vector2Negate(axis_y), -view_mat.m6, GREEN, "-Y", 4, true};
-    out_axes[5] = (GizmoAxis){Vector2Negate(axis_z), -view_mat.m10, BLUE, "-Z", 5, true};
+    out_axes[0] = (GizmoAxis){axis_x, view_mat.m2, ColorScale(RED, 0.8f), RED, "X", 0, false};
+    out_axes[1] = (GizmoAxis){axis_y, view_mat.m6, ColorScale(GREEN, 0.8f), GREEN, "Y", 1, false};
+    out_axes[2] = (GizmoAxis){axis_z, view_mat.m10, ColorScale(BLUE, 0.8f), BLUE, "Z", 2, false};
+    out_axes[3] = (GizmoAxis){Vector2Negate(axis_x), -view_mat.m2, ColorScale(RED, 0.8f), RED, "-X", 3, true};
+    out_axes[4] = (GizmoAxis){Vector2Negate(axis_y), -view_mat.m6, ColorScale(GREEN, 0.8F), GREEN, "-Y", 4, true};
+    out_axes[5] = (GizmoAxis){Vector2Negate(axis_z), -view_mat.m10, ColorScale(BLUE, 0.8f), BLUE, "-Z", 5, true};
 }
 
 static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
-    Vec2 center = { 
-        panel->bounds.x + panel->bounds.width - GIZMO_STYLE.margin_right, 
-        panel->bounds.y + GIZMO_STYLE.margin_top 
+    Vec2 center = {
+        panel->bounds.x + panel->bounds.width - GIZMO_STYLE.margin_right,
+        panel->bounds.y + GIZMO_STYLE.margin_top
     };
     Vec2 global_mouse = GetMousePosition();
-    bool is_hovered = CheckCollisionPointCircle(global_mouse, center, GIZMO_STYLE.bg_radius);
+    bool is_hovered_background = CheckCollisionPointCircle(global_mouse, center, GIZMO_STYLE.bg_radius);
     GizmoAxis axes[6];
     calculate_gizmo_axes(camera, axes);
     i32 closest_id = -1;
-    if (is_hovered) {
-        f32 min_dist = 99999.0f;
+    if (is_hovered_background) {
+        f32 min_dist = FLT_MAX;
         for (i32 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
@@ -85,7 +100,7 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
             }
         }
     }
-    Color bg_color = is_hovered ? ColorAlpha(RAYWHITE, 0.15f) : ColorAlpha(BLACK, 0.3f);
+    Color bg_color = is_hovered_background ? ColorAlpha(RAYWHITE, 0.05f) : ColorAlpha(BLACK, 0.3f);
     DrawCircleV(center, GIZMO_STYLE.bg_radius, bg_color);
     for (i32 x = 0; x < 5; x++) {
         for (i32 y = 0; y < 5 - x; y++) {
@@ -97,21 +112,28 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
         }
     }
     for (i32 x = 0; x < 6; x++) {
-        Vec2 end_pos = Vector2Add(center, axes[x].pos);
-        if (!axes[x].is_negative) {
-            DrawCircleV(end_pos, GIZMO_STYLE.tip_radius, axes[x].color);
-            DrawLineEx(center, end_pos, GIZMO_STYLE.line_thickness, axes[x].color);
-        } else {
-            Color transparent_bg = axes[x].color;
-            transparent_bg.a = 96;
-            DrawCircleV(end_pos, GIZMO_STYLE.tip_radius, transparent_bg);
-            DrawCircleLinesV(end_pos, GIZMO_STYLE.tip_radius, axes[x].color);
-        }
-        Color text_color = (is_hovered && axes[x].id == closest_id) ? WHITE : DARKGRAY;
-        f32 label_size = 14.0f;
+        f32 label_size = 18.0f;
+        Vec2 gizmo_pos = Vector2Add(center, axes[x].pos);
         Vec2 text_size = MeasureTextEx(font, axes[x].label, label_size, 1.0f);
-        Vec2 text_pos = { end_pos.x - (text_size.x / 2.0f), end_pos.y - (text_size.y / 2.0f) }; 
-        DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
+        Vec2 text_pos = {
+            gizmo_pos.x - (text_size.x / 2.0f),
+            gizmo_pos.y - (text_size.y / 2.0f)
+        };
+        Color transparent_bg = axes[x].fillColor;
+        transparent_bg.a = 96;
+        Color fill_color = (axes[x].is_negative == false || axes[x].id == closest_id) ? axes[x].fillColor : transparent_bg;
+        Color text_color = (is_hovered_background && axes[x].id == closest_id) ? WHITE : DARKGRAY;
+        DrawCircleV(center, GIZMO_STYLE.dot_radius, WHITE);
+        DrawCircleV(gizmo_pos, GIZMO_STYLE.tip_radius, fill_color);
+        if (axes[x].is_negative == false) {
+            DrawLineEx(center, gizmo_pos, GIZMO_STYLE.line_thickness, fill_color);
+            DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
+        } else {
+            DrawCircleLinesV(gizmo_pos, GIZMO_STYLE.tip_radius, fill_color);
+        }
+        if (axes[x].is_negative && axes[x].id == closest_id) {
+            DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
+        }
     }
 }
 
@@ -120,15 +142,15 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
     if (!CheckCollisionPointRec(global_mouse, panel->bounds)) {
         return;
     }
-    Vec2 global_gizmo_center = { 
-        panel->bounds.x + panel->bounds.width - GIZMO_STYLE.margin_right, 
-        panel->bounds.y + GIZMO_STYLE.margin_top 
+    Vec2 global_gizmo_center = {
+        panel->bounds.x + panel->bounds.width - GIZMO_STYLE.margin_right,
+        panel->bounds.y + GIZMO_STYLE.margin_top
     };
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
         CheckCollisionPointCircle(global_mouse, global_gizmo_center, GIZMO_STYLE.bg_radius)) {
         GizmoAxis axes[6];
         calculate_gizmo_axes(view->camera.rl_camera, axes);
-        f32 min_dist = 99999.0f;
+        f32 min_dist = FLT_MAX;
         i32 closest_id = -1;
         for (i32 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(global_gizmo_center, axes[i].pos);
@@ -141,34 +163,34 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
         if (closest_id != -1) {
             view->is_animating = true;
             view->anim_timer = 0.0f;
-            view->anim_duration = 0.2f; 
+            view->anim_duration = 0.2f;
             view->start_pos = view->camera.rl_camera.position;
             view->start_yaw = view->camera.yaw;
             view->start_pitch = view->camera.pitch;
             f32 distance = 10.0f;
             if (closest_id == 0) { // +X (Snap Right)
                 view->target_pos = (Vec3){distance, 0.0f, 0.0f};
-                view->target_yaw = -PI / 2.0f; 
+                view->target_yaw = -PI / 2.0f;
                 view->target_pitch = 0.0f;
             } else if (closest_id == 1) { // +Y (Snap Top)
                 view->target_pos = (Vec3){0.0f, distance, 0.0f};
-                view->target_yaw = PI; 
+                view->target_yaw = PI;
                 view->target_pitch = -(PI / 2.0f) + 0.001f;
             } else if (closest_id == 2) { // +Z (Snap Front)
                 view->target_pos = (Vec3){0.0f, 0.0f, distance};
-                view->target_yaw = PI; 
+                view->target_yaw = PI;
                 view->target_pitch = 0.0f;
             } else if (closest_id == 3) { // -X (Snap Left)
                 view->target_pos = (Vec3){-distance, 0.0f, 0.0f};
-                view->target_yaw = PI / 2.0f; 
+                view->target_yaw = PI / 2.0f;
                 view->target_pitch = 0.0f;
             } else if (closest_id == 4) { // -Y (Snap Bottom)
                 view->target_pos = (Vec3){0.0f, -distance, 0.0f};
-                view->target_yaw = PI; 
+                view->target_yaw = PI;
                 view->target_pitch = (PI / 2.0f) - 0.001f;
             } else if (closest_id == 5) { // -Z (Snap Back)
                 view->target_pos = (Vec3){0.0f, 0.0f, -distance};
-                view->target_yaw = 0.0f; 
+                view->target_yaw = 0.0f;
                 view->target_pitch = 0.0f;
             }
             while (view->target_yaw - view->start_yaw > PI) {
@@ -218,7 +240,7 @@ static void editor_view_update(Panel* panel, InputManager* input, bool is_focuse
         view->camera.rl_camera.position = Vector3Lerp(view->start_pos, view->target_pos, ease_t);
         view->camera.yaw = Lerp(view->start_yaw, view->target_yaw, ease_t);
         view->camera.pitch = Lerp(view->start_pitch, view->target_pitch, ease_t);
-        
+
     } else if (is_focused) {
         handle_editor_input(view, input, delta_time);
     }

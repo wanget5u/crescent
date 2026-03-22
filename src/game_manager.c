@@ -1,8 +1,6 @@
 #include <raylib.h>
 #include <raymath.h>
 #include <rlgl.h>
-#include <stdio.h>
-#include <time.h>
 #include <math.h>
 
 #include "game_manager.h"

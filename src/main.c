@@ -1,5 +1,4 @@
 #include <raylib.h>
-#include <stdio.h>
 
 #include "game_manager.h"
 #include "tools.h"
