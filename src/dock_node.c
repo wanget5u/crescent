@@ -128,12 +128,13 @@ void dock_node_resize_tree(DockNode* node, Rectangle new_bounds) {
 }
 
 static void update_leaf_tabs(DockNode* node, Vec2 mouse_pos, Font font, DockNode** focused_leaf, Panel** out_dragged_tab) {
+    (void) font;
     f32 tab_height = 35.0f;
     f32 current_x = node->bounds.x;
     for (i32 x = 0; x < node->tab_count; x++) {
         f32 tab_width = 100.0f;
         if (node->tabs[x]->title) {
-            tab_width = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
+            tab_width = node->tabs[x]->tab_width;
         }
         Rectangle hitbox = {current_x, node->bounds.y, tab_width, tab_height};
         if (CheckCollisionPointRec(mouse_pos, hitbox)) {
@@ -203,9 +204,9 @@ void dock_node_update_tree(DockNode* node, InputManager* input, f32 dt, i32* cur
         if (node->tab_count > 0 && node->tabs[node->active_tab]->update) {
             f32 tab_height = 35.0f;
             Rectangle content_bounds = {
-                node->bounds.x, 
-                node->bounds.y + tab_height, 
-                node->bounds.width, 
+                node->bounds.x,
+                node->bounds.y + tab_height,
+                node->bounds.width,
                 node->bounds.height - tab_height
             };
             node->tabs[node->active_tab]->bounds = content_bounds;

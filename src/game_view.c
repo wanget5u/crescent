@@ -1,7 +1,9 @@
 #include <stdlib.h>
+#include "core.h"
 #include "graphics_utils.h"
 #include "game_view.h"
 #include "game_camera.h"
+#include "raylib.h"
 
 typedef struct {
     GameCamera camera;
@@ -31,7 +33,7 @@ static void game_view_update(Panel* panel, InputManager* input, bool is_focused,
     if (is_focused) {
         handle_game_input(view, input);
     } else {
-        view->player_ref->input_direction = (Vec3){0.0f, 0.0f, 0.0f}; 
+        view->player_ref->input_direction = (Vec3){0.0f, 0.0f, 0.0f};
     }
     player_update(view->player_ref, &view->camera.yaw, delta_time);
     camera_update(&view->camera, &view->player_ref->position, is_focused, delta_time);
@@ -50,6 +52,21 @@ static void game_view_cleanup(Panel* panel) {
     free(panel);
 }
 
+static void game_view_render_overlay(Panel* panel, Font font) {
+    GameViewData* view = (GameViewData*)panel->data;
+    BeginScissorMode((i32)panel->bounds.x, (i32)panel->bounds.y, (i32)panel->bounds.width, (i32)panel->bounds.height);
+    f32 pos_x = panel->bounds.x + 10.0f;
+    f32 pos_y = panel->bounds.y + 10.0f;
+    f32 font_size = 22.0f;
+    f32 line_spacing = font_size + 4.0f;
+    DrawTextEx(font, TextFormat("X: %.2f", view->player_ref->position.x), (Vec2){pos_x, pos_y}, font_size, FONT_SPACING, ColorAlpha(ColorScale(RED, 0.9f), 0.7f));
+    pos_y += line_spacing;
+    DrawTextEx(font, TextFormat("Y: %.2f", view->player_ref->position.y), (Vec2){pos_x, pos_y}, font_size, FONT_SPACING, ColorAlpha(ColorScale(GREEN, 0.9f), 0.7f));
+    pos_y += line_spacing;
+    DrawTextEx(font, TextFormat("Z: %.2f", view->player_ref->position.z), (Vec2){pos_x, pos_y}, font_size, FONT_SPACING, ColorAlpha(ColorScale(BLUE, 0.9f), 0.7f));
+    EndScissorMode();
+}
+
 Panel* game_view_create(Player* player, Shader grid_shader, i32 cam_pos_loc, Font font) {
     (void) font;
     Panel* panel = (Panel*)malloc(sizeof(Panel));
@@ -59,10 +76,11 @@ Panel* game_view_create(Player* player, Shader grid_shader, i32 cam_pos_loc, Fon
     data->grid_shader = grid_shader;
     data->grid_cam_pos_loc = cam_pos_loc;
     panel->title = "Game";
+    panel->tab_width = MeasureTextEx(font, panel->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
     panel->data = data;
     panel->update = game_view_update;
     panel->render = game_view_render;
-    panel->render_overlay = NULL;
+    panel->render_overlay = game_view_render_overlay;
     panel->cleanup = game_view_cleanup;
     return panel;
 }

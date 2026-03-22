@@ -1,6 +1,8 @@
 #include "ui_manager.h"
+#include "core.h"
 #include "game_view.h"
 #include "editor_view.h"
+#include "raylib.h"
 
 static void draw_leaf_tabs(DockNode* node, Font font) {
     f32 tab_height = 35.0f;
@@ -9,7 +11,7 @@ static void draw_leaf_tabs(DockNode* node, Font font) {
     for (i32 x = 0; x < node->tab_count; x++) {
         f32 tab_width = 100.0f;
         if (node->tabs[x]->title) {
-            tab_width = MeasureTextEx(font, node->tabs[x]->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
+            tab_width = node->tabs[x]->tab_width;
         }
         Color tab_color = (x == node->active_tab) ? GRAY : DARKGRAY;
         DrawRectangleRec((Rectangle){current_x, node->bounds.y, tab_width, tab_height}, tab_color);
@@ -17,15 +19,6 @@ static void draw_leaf_tabs(DockNode* node, Font font) {
             DrawTextEx(font, node->tabs[x]->title, (Vec2){current_x + 8.0f, node->bounds.y + 8.0f}, FONT_SIZE, FONT_SPACING, RAYWHITE);
         }
         current_x += tab_width + 2.0f;
-    }
-
-    if (node->is_focused) {
-        f32 inset = 1.0f; 
-        Rectangle highlight = {
-            node->bounds.x + inset, node->bounds.y + tab_height + inset,
-            node->bounds.width - (inset * 2.0f), node->bounds.height - tab_height - (inset * 2.0f)
-        };
-        DrawRectangleLinesEx(highlight, 3.0f, WHITE);
     }
 }
 
@@ -58,13 +51,13 @@ static void draw_dock_tree(DockNode* node, Font font) {
 }
 
 static void render_global_ui(UIManager* user_interface) {
-    DrawTextEx(user_interface->font, TextFormat("%i FPS", GetFPS()), (Vec2) {10.0f, 40.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
-    const char* coordinates_text = TextFormat("x: %.2f, y: %.2f, z: %.2f", 
-        user_interface->player_ref->position.x, 
-        user_interface->player_ref->position.y, 
-        user_interface->player_ref->position.z
-    );
-    DrawTextEx(user_interface->font, coordinates_text, (Vec2) {10.0f, (f32)GetScreenHeight() - 30.0f}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
+    f32 ui_width = user_interface->root->bounds.width;
+    f32 ui_height = user_interface->root->bounds.height;
+    const char* fps_text = TextFormat("%i FPS", GetFPS());
+    Vec2 text_size = MeasureTextEx(user_interface->font, fps_text, FONT_SIZE, FONT_SPACING);
+    f32 pos_x = 10.0f;
+    f32 pos_y = ui_height - text_size.y - 5.0f;
+    DrawTextEx(user_interface->font, fps_text, (Vec2){pos_x, pos_y}, FONT_SIZE, FONT_SPACING, TEXT_COLOR);
 }
 
 static DockNode* get_hovered_leaf(DockNode* node, Vec2 mouse_pos) {
@@ -87,6 +80,7 @@ static DockNode* get_hovered_leaf(DockNode* node, Vec2 mouse_pos) {
 void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shader, int grid_cam_pos) {
     user_interface->player_ref = player;
     user_interface->font = LoadFontEx("./assets/fonts/JetBrainsMono-Bold.ttf", 64, NULL, 0);
+    user_interface->current_active_cursor = MOUSE_CURSOR_DEFAULT;
     SetTextureFilter(user_interface->font.texture, TEXTURE_FILTER_BILINEAR);
     Panel* game_panel = game_view_create(player, grid_shader, grid_cam_pos, user_interface->font);
     Panel* editor_panel = editor_view_create(player, grid_shader, grid_cam_pos, user_interface->font);
@@ -95,7 +89,7 @@ void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shad
     dock_node_add_tab(root_leaf, editor_panel);
     user_interface->root = root_leaf;
     user_interface->focused_leaf = root_leaf;
-    user_interface->dragging_tab = NULL; 
+    user_interface->dragging_tab = NULL;
     user_interface->hover_target = NULL;
     ui_manager_resize(user_interface, BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT);
 }
@@ -188,18 +182,30 @@ void ui_manager_update(UIManager* user_interface, InputManager* input, f32 delta
     } else {
         handle_normal_update(user_interface, input, delta_time, &desired_cursor);
     }
-    if (!IsCursorHidden()) {
+    if (!IsCursorHidden() && desired_cursor != user_interface->current_active_cursor) {
         SetMouseCursor(desired_cursor);
+        user_interface->current_active_cursor = desired_cursor;
     }
 }
 
 void ui_manager_render(UIManager* user_interface) {
     dock_node_render_tree(user_interface->root);
     BeginDrawing();
-    ClearBackground(BG_COLOR); 
+    ClearBackground(BG_COLOR);
     draw_dock_tree(user_interface->root, user_interface->font);
     dock_node_render_overlay_tree(user_interface->root, user_interface->font);
     render_global_ui(user_interface);
+    if (user_interface->focused_leaf != NULL && user_interface->focused_leaf->is_focused) {
+        f32 tab_height = 35.0f;
+        f32 inset = 1.0f;
+        Rectangle highlight = {
+            user_interface->focused_leaf->bounds.x + inset,
+            user_interface->focused_leaf->bounds.y + tab_height + inset,
+            user_interface->focused_leaf->bounds.width - (inset * 2.0f),
+            user_interface->focused_leaf->bounds.height - tab_height - (inset * 2.0f)
+        };
+        DrawRectangleLinesEx(highlight, 2.0f, WHITE);
+    }
     if (user_interface->dragging_tab != NULL) {
         if (user_interface->current_drop_zone != DROP_NONE) {
             DrawRectangleRec(user_interface->drop_preview_rectangle, Fade(SKYBLUE, 0.4f));

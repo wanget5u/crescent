@@ -8,7 +8,7 @@
 static void window_init() {
     InitWindow(BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT, "Crescent");
     SetWindowMinSize(MIN_SCREEN_WIDTH, MIN_SCREEN_HEIGHT);
-    SetTargetFPS(10000);
+    SetWindowState(FLAG_VSYNC_HINT);
 }
 
 static void shader_init(GameManager* game_manager) {

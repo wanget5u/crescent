@@ -1,4 +1,5 @@
 #include <limits.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <float.h>
 #include "graphics_utils.h"
@@ -7,13 +8,17 @@
 #include "raylib.h"
 
 typedef struct {
+    bool show_grid;
+    bool show_3D;
+} EditorOptions;
+
+typedef struct {
     GameCamera camera;
     f32 camera_speed;
     Player* player_ref;
     Shader grid_shader;
     i32 grid_cam_pos_loc;
     Font font;
-
     // animation state
     bool is_animating;
     f32 anim_timer;
@@ -24,6 +29,7 @@ typedef struct {
     f32 start_pitch;
     f32 target_yaw;
     f32 target_pitch;
+    EditorOptions editor_options;
 } EditorViewData;
 
 typedef struct {
@@ -32,7 +38,7 @@ typedef struct {
     Color fillColor;
     Color outlineColor;
     const char* label;
-    i32 id;
+    u8 id;
     bool is_negative;
 } GizmoAxis;
 
@@ -48,21 +54,41 @@ typedef struct {
 
 static const GizmoStyle GIZMO_STYLE = {
     .margin_right = 70.0f,
-    .margin_top = 70.0f,
+    .margin_top = 102.5f,
     .line_length = 40.0f,
     .tip_radius = 10.0f,
     .bg_radius = 50.0f,
-    .dot_radius = 2.0f,
+    .dot_radius = 1.0f,
     .line_thickness = 2.0f
 };
 
-static inline Color ColorScale(Color color, f32 factor) {
-    return (Color) {
-      (unsigned char)(color.r * factor),
-      (unsigned char)(color.g * factor),
-      (unsigned char)(color.b * factor),
-      color.a
-    };
+typedef struct {
+    f32 height;
+    f32 font_size;
+    f32 btn_padding;
+    f32 btn_height;
+    f32 btn_spacing;
+    f32 margin_x;
+    f32 margin_y;
+} EditorHeaderStyle;
+
+static const EditorHeaderStyle HEADER_STYLE = {
+    .height = 35.0f,
+    .font_size = 16.0f,
+    .btn_padding = 20.0f,
+    .btn_height = 25.0f,
+    .btn_spacing = 5.0f,
+    .margin_x = 5.0f,
+    .margin_y = 5.0f
+};
+
+static const char* get_header_option_label(EditorViewData* view, u8 index) {
+    switch (index) {
+        case 0: return view->editor_options.show_3D ? "3D" : "2D";
+        case 1: return view->editor_options.show_grid ? "Hide Grid" : "Show Grid";
+        case 2: return "Reset View";
+        default: return "";
+    }
 }
 
 static void calculate_gizmo_axes(Camera3D camera, GizmoAxis* out_axes) {
@@ -88,10 +114,10 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
     bool is_hovered_background = CheckCollisionPointCircle(global_mouse, center, GIZMO_STYLE.bg_radius);
     GizmoAxis axes[6];
     calculate_gizmo_axes(camera, axes);
-    i32 closest_id = -1;
+    u8 closest_id = -1;
     if (is_hovered_background) {
         f32 min_dist = FLT_MAX;
-        for (i32 i = 0; i < 6; i++) {
+        for (u8 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
             if (dist < min_dist) {
@@ -102,8 +128,8 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
     }
     Color bg_color = is_hovered_background ? ColorAlpha(RAYWHITE, 0.05f) : ColorAlpha(BLACK, 0.3f);
     DrawCircleV(center, GIZMO_STYLE.bg_radius, bg_color);
-    for (i32 x = 0; x < 5; x++) {
-        for (i32 y = 0; y < 5 - x; y++) {
+    for (u8 x = 0; x < 5; x++) {
+        for (u8 y = 0; y < 5 - x; y++) {
             if (axes[y].depth > axes[y + 1].depth) {
                 GizmoAxis temp = axes[y];
                 axes[y] = axes[y + 1];
@@ -111,7 +137,7 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
             }
         }
     }
-    for (i32 x = 0; x < 6; x++) {
+    for (u8 x = 0; x < 6; x++) {
         f32 label_size = 18.0f;
         Vec2 gizmo_pos = Vector2Add(center, axes[x].pos);
         Vec2 text_size = MeasureTextEx(font, axes[x].label, label_size, 1.0f);
@@ -120,7 +146,7 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
             gizmo_pos.y - (text_size.y / 2.0f)
         };
         Color transparent_bg = axes[x].fillColor;
-        transparent_bg.a = 96;
+        transparent_bg.a = 128;
         Color fill_color = (axes[x].is_negative == false || axes[x].id == closest_id) ? axes[x].fillColor : transparent_bg;
         Color text_color = (is_hovered_background && axes[x].id == closest_id) ? WHITE : DARKGRAY;
         DrawCircleV(center, GIZMO_STYLE.dot_radius, WHITE);
@@ -151,8 +177,8 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
         GizmoAxis axes[6];
         calculate_gizmo_axes(view->camera.rl_camera, axes);
         f32 min_dist = FLT_MAX;
-        i32 closest_id = -1;
-        for (i32 i = 0; i < 6; i++) {
+        i8 closest_id = -1;
+        for (i8 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(global_gizmo_center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
             if (dist < min_dist) {
@@ -203,6 +229,75 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
     }
 }
 
+static void draw_editor_view_options(Panel* panel, Font font) {
+    EditorViewData* view = (EditorViewData*)panel->data;
+    Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
+    DrawRectangleRec(header_rectangle, ColorAlpha(BLACK, 0.6f));
+    DrawLineEx(
+        (Vec2){panel->bounds.x, panel->bounds.y + HEADER_STYLE.height},
+        (Vec2){panel->bounds.x + panel->bounds.width, panel->bounds.y + HEADER_STYLE.height},
+        1.0f, ColorAlpha(WHITE, 0.1f)
+    );
+    f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
+    Vec2 mouse_pos = GetMousePosition();
+    u8 option_count = 3;
+    for (u8 x = 0; x < option_count; x++) {
+        const char* label = get_header_option_label(view, x);
+        Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
+        Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.btn_padding, HEADER_STYLE.btn_height};
+        bool is_button_hovered = CheckCollisionPointRec(mouse_pos, option_button);
+        Color bg_color = is_button_hovered ? ColorAlpha(WHITE, 0.4f) : ColorAlpha(WHITE, 0.05f);
+        DrawRectangleRounded(option_button, 0.1f, 4, bg_color);
+        if (is_button_hovered) {
+            DrawRectangleRoundedLines(option_button, 0.1f, 4, ColorAlpha(WHITE, 0.2f));
+        }
+        Vec2 text_pos = {
+            current_x + (HEADER_STYLE.btn_padding / 2.0f),
+            panel->bounds.y + (HEADER_STYLE.height - text_size.y) / 2.0f
+        };
+        DrawTextEx(font, label, text_pos, HEADER_STYLE.font_size, 1.0f, is_button_hovered ? WHITE : LIGHTGRAY);
+        current_x += option_button.width + HEADER_STYLE.btn_spacing;
+    }
+}
+
+static bool handle_editor_options_input(Panel* panel, EditorViewData* view, Font font) {
+    Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
+    Vec2 mouse_pos = GetMousePosition();
+    if (CheckCollisionPointRec(mouse_pos, header_rectangle) == false) {
+        return false;
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
+        u8 option_count = 3;
+        for (u8 x = 0; x < option_count; x++) {
+            const char* label = get_header_option_label(view, x);
+            Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
+            Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.btn_padding, HEADER_STYLE.btn_height};
+            if (CheckCollisionPointRec(mouse_pos, option_button)) {
+                if (x == 0) {
+                    view->editor_options.show_3D = !view->editor_options.show_3D;
+                    // TODO: swap between orthographic and perspective
+                } else if (x == 1) {
+                    view->editor_options.show_grid = !view->editor_options.show_grid;
+                } else if (x == 2) {
+                    view->is_animating = true;
+                    view->anim_timer = 0.0f;
+                    view->anim_duration = 0.3f;
+                    view->start_pos = view->camera.rl_camera.position;
+                    view->start_yaw = view->camera.yaw;
+                    view->start_pitch = view->camera.pitch;
+                    view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+                    view->target_yaw = -PI * 0.75f;
+                    view->target_pitch = -0.5f;
+                }
+                break;
+            }
+            current_x += option_button.width + HEADER_STYLE.btn_spacing;
+        }
+    }
+    return true;
+}
+
 static void handle_editor_input(EditorViewData* view, InputManager* input, f32 delta_time) {
     Vec3 input_direction = {0.0f, 0.0f, 0.0f};
     Vec3 forward = Vector3Subtract(view->camera.rl_camera.target, view->camera.rl_camera.position);
@@ -226,9 +321,11 @@ static void handle_editor_input(EditorViewData* view, InputManager* input, f32 d
 }
 
 static void editor_view_update(Panel* panel, InputManager* input, bool is_focused, f32 delta_time, Font font) {
-    (void) font;
     EditorViewData* view = (EditorViewData*)panel->data;
-    handle_world_axes_gizmo_input(panel, view);
+    bool input_consumed = handle_editor_options_input(panel, view, font);
+    if (input_consumed == false) {
+        handle_world_axes_gizmo_input(panel, view);
+    }
     if (view->is_animating) {
         view->anim_timer += delta_time;
         f32 t = view->anim_timer / view->anim_duration;
@@ -240,8 +337,7 @@ static void editor_view_update(Panel* panel, InputManager* input, bool is_focuse
         view->camera.rl_camera.position = Vector3Lerp(view->start_pos, view->target_pos, ease_t);
         view->camera.yaw = Lerp(view->start_yaw, view->target_yaw, ease_t);
         view->camera.pitch = Lerp(view->start_pitch, view->target_pitch, ease_t);
-
-    } else if (is_focused) {
+    } else if (is_focused && input_consumed == false) {
         handle_editor_input(view, input, delta_time);
     }
     camera_update(&view->camera, &view->camera.rl_camera.position, is_focused, delta_time);
@@ -250,7 +346,9 @@ static void editor_view_update(Panel* panel, InputManager* input, bool is_focuse
 static void editor_view_render(Panel* panel) {
     EditorViewData* view = (EditorViewData*)panel->data;
     BeginMode3D(view->camera.rl_camera);
-    render_environment_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position);
+    if (view->editor_options.show_grid) {
+        render_environment_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position);
+    }
     if (view->player_ref) {
         player_render(view->player_ref);
     }
@@ -266,6 +364,7 @@ static void editor_view_render_overlay(Panel* panel, Font font) {
     EditorViewData* view = (EditorViewData*)panel->data;
     BeginScissorMode((i32)panel->bounds.x, (i32)panel->bounds.y, (i32)panel->bounds.width, (i32)panel->bounds.height);
     draw_world_axes_gizmo(panel, view->camera.rl_camera, font);
+    draw_editor_view_options(panel, font);
     EndScissorMode();
 }
 
@@ -278,8 +377,11 @@ Panel* editor_view_create(Player* player_ref, Shader grid_shader, i32 cam_pos_lo
     data->grid_shader = grid_shader;
     data->grid_cam_pos_loc = cam_pos_loc;
     data->is_animating = false;
-    panel->title = "Scene";
     data->font = font;
+    data->editor_options.show_grid = true;
+    data->editor_options.show_3D = true;
+    panel->title = "Scene";
+    panel->tab_width = MeasureTextEx(font, panel->title, FONT_SIZE, FONT_SPACING).x + 20.0f;
     panel->data = data;
     panel->update = editor_view_update;
     panel->render = editor_view_render;

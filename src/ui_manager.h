@@ -6,7 +6,7 @@
 #include "player.h"
 
 typedef enum {
-    DROP_NONE,      
+    DROP_NONE,
     DROP_CENTER,    // Adds to the target leaf's tab array
     DROP_LEFT,      // Splits the leaf horizontally, places tab on the left
     DROP_RIGHT,     // Splits the leaf horizontally, places tab on the right
@@ -17,6 +17,7 @@ typedef enum {
 typedef struct {
     DockNode* root;
     Font font;
+    i32 current_active_cursor;
     Player* player_ref;
     DockNode* focused_leaf;
 
