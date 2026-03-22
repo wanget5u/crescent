@@ -12,31 +12,56 @@ vec2 trueFwidth(vec2 p) {
 }
 
 float getGrid(vec2 coord, float size) {
-	vec2 c = coord / size;
-	vec2 derivative = trueFwidth(c);
-	vec2 grid = abs(fract(c - 0.5) - 0.5) / derivative;
-	float line = min(grid.x, grid.y);
-	return 1.0 - min(line, 1.0);
+    vec2 c = coord / size;
+    vec2 derivative = trueFwidth(c);
+
+    derivative = max(derivative, vec2(0.000001));
+
+    vec2 grid = abs(fract(c - 0.5) - 0.5) / derivative;
+    float line = min(grid.x, grid.y);
+    return 1.0 - min(line, 1.0);
 }
 
 void main() {
-	float baseSize = 1.0;
-	float minPixels = 1.0;
-	vec2 dudv = trueFwidth(fragWorldPos.xz);
-	float dudvLength = length(dudv);
-	float lod = max(0.0, (log(dudvLength * minPixels / baseSize) / log(300.0)) + 1.0);
-	float lodLevel = floor(lod);
-	float lodFade = fract(lod);
-	float cell0 = baseSize * pow(10.0, lodLevel);
-	float cell1 = cell0 * 10.0;
-	float cell2 = cell1 * 10.0;
-	float alpha0 = getGrid(fragWorldPos.xz, cell0);
-	float alpha1 = getGrid(fragWorldPos.xz, cell1);
-	float alpha2 = getGrid(fragWorldPos.xz, cell2);
-	float alpha = max(alpha2, max(alpha1, alpha0 * (1.0 - lodFade)));
-	float dist = length(fragWorldPos - camPos);
-	float fade = 1.0 - clamp(dist / 300.0, 0.0, 1.0);
-	float finalAlpha = alpha * fade;
-	vec3 gridColor = vec3(0.9);
-	finalColor = vec4(gridColor, finalAlpha);
+    vec3 dx = dFdx(fragWorldPos);
+    vec3 dy = dFdy(fragWorldPos);
+    vec3 normal = abs(cross(dx, dy));
+
+    vec2 gridCoords;
+
+    if (normal.x > normal.y && normal.x > normal.z) {
+        gridCoords = fragWorldPos.yz; // Facing X (Left/Right)
+    } else if (normal.z > normal.x && normal.z > normal.y) {
+        gridCoords = fragWorldPos.xy; // Facing Z (Front/Back)
+    } else {
+        gridCoords = fragWorldPos.xz; // Facing Y (Top/Bottom)
+    }
+
+    float baseSize = 1.0;
+    float minPixels = 1.0;
+
+    vec2 dudv = trueFwidth(gridCoords);
+    float dudvLength = length(dudv);
+
+    dudvLength = max(dudvLength, 0.000001);
+
+    float lod = max(0.0, (log(dudvLength * minPixels / baseSize) / log(300.0)) + 1.0);
+    float lodLevel = floor(lod);
+    float lodFade = fract(lod);
+
+    float cell0 = baseSize * pow(10.0, lodLevel);
+    float cell1 = cell0 * 10.0;
+    float cell2 = cell1 * 10.0;
+
+    float alpha0 = getGrid(gridCoords, cell0);
+    float alpha1 = getGrid(gridCoords, cell1);
+    float alpha2 = getGrid(gridCoords, cell2);
+    float alpha = max(alpha2, max(alpha1, alpha0 * (1.0 - lodFade)));
+
+    float dist = length(fragWorldPos - camPos);
+    float fade = 1.0 - clamp(dist / 300.0, 0.0, 1.0);
+    float finalAlpha = alpha * fade;
+
+    vec3 gridColor = vec3(0.9);
+    finalColor = vec4(gridColor, finalAlpha);
 }

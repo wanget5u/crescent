@@ -5,6 +5,7 @@
 #include "graphics_utils.h"
 #include "editor_view.h"
 #include "game_camera.h"
+#include "input_manager.h"
 #include "raylib.h"
 
 typedef struct {
@@ -29,6 +30,12 @@ typedef struct {
     f32 start_pitch;
     f32 target_yaw;
     f32 target_pitch;
+    f32 saved_fov;
+    f32 grid_angle;
+    f32 start_grid_angle;
+    f32 target_grid_angle;
+    Vec3 grid_axis;
+    i8 active_axis_id;
     EditorOptions editor_options;
 } EditorViewData;
 
@@ -106,6 +113,7 @@ static void calculate_gizmo_axes(Camera3D camera, GizmoAxis* out_axes) {
 }
 
 static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
+    EditorViewData* view = (EditorViewData*)panel->data;
     Vec2 center = {
         panel->bounds.x + panel->bounds.width - GIZMO_STYLE.margin_right,
         panel->bounds.y + GIZMO_STYLE.margin_top
@@ -114,10 +122,10 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
     bool is_hovered_background = CheckCollisionPointCircle(global_mouse, center, GIZMO_STYLE.bg_radius);
     GizmoAxis axes[6];
     calculate_gizmo_axes(camera, axes);
-    u8 closest_id = -1;
+    i8 closest_id = -1;
     if (is_hovered_background) {
         f32 min_dist = FLT_MAX;
-        for (u8 i = 0; i < 6; i++) {
+        for (i8 i = 0; i < 6; i++) {
             Vec2 tip_global = Vector2Add(center, axes[i].pos);
             f32 dist = Vector2Distance(global_mouse, tip_global);
             if (dist < min_dist) {
@@ -145,19 +153,21 @@ static void draw_world_axes_gizmo(Panel* panel, Camera3D camera, Font font) {
             gizmo_pos.x - (text_size.x / 2.0f),
             gizmo_pos.y - (text_size.y / 2.0f)
         };
+        bool is_hovered = (is_hovered_background && axes[x].id == closest_id);
+        bool is_active = (!view->editor_options.show_3D && axes[x].id == view->active_axis_id);
         Color transparent_bg = axes[x].fillColor;
         transparent_bg.a = 128;
-        Color fill_color = (axes[x].is_negative == false || axes[x].id == closest_id) ? axes[x].fillColor : transparent_bg;
-        Color text_color = (is_hovered_background && axes[x].id == closest_id) ? WHITE : DARKGRAY;
+        Color fill_color = (!axes[x].is_negative || is_hovered || is_active) ? axes[x].fillColor : transparent_bg;
+        Color text_color = (is_hovered || is_active) ? WHITE : DARKGRAY;
         DrawCircleV(center, GIZMO_STYLE.dot_radius, WHITE);
         DrawCircleV(gizmo_pos, GIZMO_STYLE.tip_radius, fill_color);
-        if (axes[x].is_negative == false) {
+        if (!axes[x].is_negative) {
             DrawLineEx(center, gizmo_pos, GIZMO_STYLE.line_thickness, fill_color);
             DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
         } else {
             DrawCircleLinesV(gizmo_pos, GIZMO_STYLE.tip_radius, fill_color);
         }
-        if (axes[x].is_negative && axes[x].id == closest_id) {
+        if (axes[x].is_negative && (is_hovered || is_active)) {
             DrawTextEx(font, axes[x].label, text_pos, label_size, 1.0f, text_color);
         }
     }
@@ -187,37 +197,75 @@ static void handle_world_axes_gizmo_input(Panel* panel, EditorViewData* view) {
             }
         }
         if (closest_id != -1) {
+            view->active_axis_id = closest_id;
             view->is_animating = true;
             view->anim_timer = 0.0f;
             view->anim_duration = 0.2f;
             view->start_pos = view->camera.rl_camera.position;
             view->start_yaw = view->camera.yaw;
             view->start_pitch = view->camera.pitch;
+            if (view->editor_options.show_3D) {
+                view->saved_fov = view->camera.rl_camera.fovy;
+                view->editor_options.show_3D = false;
+            }
             f32 distance = 10.0f;
-            if (closest_id == 0) { // +X (Snap Right)
-                view->target_pos = (Vec3){distance, 0.0f, 0.0f};
+            if (closest_id == 0) { // +X (Right View)
+                view->target_pos = (Vec3){
+                    distance,
+                    view->start_pos.y,
+                    view->start_pos.z
+                };
                 view->target_yaw = -PI / 2.0f;
                 view->target_pitch = 0.0f;
-            } else if (closest_id == 1) { // +Y (Snap Top)
-                view->target_pos = (Vec3){0.0f, distance, 0.0f};
+                view->target_grid_angle = 90.0f;
+                view->grid_axis = (Vec3){0.0f, 0.0f, 1.0f};
+            } else if (closest_id == 1) { // +Y (Top View)
+                view->target_pos = (Vec3){
+                    view->start_pos.x,
+                    distance,
+                    view->start_pos.z};
                 view->target_yaw = PI;
                 view->target_pitch = -(PI / 2.0f) + 0.001f;
-            } else if (closest_id == 2) { // +Z (Snap Front)
-                view->target_pos = (Vec3){0.0f, 0.0f, distance};
+                view->target_grid_angle = 0.0f;
+                view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+            } else if (closest_id == 2) { // +Z (Front View)
+                view->target_pos = (Vec3){
+                    view->start_pos.x,
+                    view->start_pos.y,
+                    distance
+                };
                 view->target_yaw = PI;
                 view->target_pitch = 0.0f;
-            } else if (closest_id == 3) { // -X (Snap Left)
-                view->target_pos = (Vec3){-distance, 0.0f, 0.0f};
+                view->target_grid_angle = 90.0f;
+                view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+            } else if (closest_id == 3) { // -X (Left View)
+                view->target_pos = (Vec3){
+                    -distance,
+                    view->start_pos.y,
+                    view->start_pos.z
+                };
                 view->target_yaw = PI / 2.0f;
                 view->target_pitch = 0.0f;
-            } else if (closest_id == 4) { // -Y (Snap Bottom)
-                view->target_pos = (Vec3){0.0f, -distance, 0.0f};
+                view->target_grid_angle = -90.0f;
+                view->grid_axis = (Vec3){0.0f, 0.0f, 1.0f};
+            } else if (closest_id == 4) { // -Y (Bottom View)
+                view->target_pos = (Vec3){
+                    view->start_pos.x,
+                    -distance,
+                    view->start_pos.z
+                };
                 view->target_yaw = PI;
                 view->target_pitch = (PI / 2.0f) - 0.001f;
-            } else if (closest_id == 5) { // -Z (Snap Back)
-                view->target_pos = (Vec3){0.0f, 0.0f, -distance};
-                view->target_yaw = 0.0f;
-                view->target_pitch = 0.0f;
+                view->target_grid_angle = 0.0f;
+                view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+            } else if (closest_id == 5) { // -Z (Back View)
+                view->target_pos = (Vec3){
+                    view->start_pos.x,
+                    view->start_pos.y,
+                    -distance
+                };
+                view->target_yaw = 0.0f; view->target_pitch = 0.0f;
+                view->target_grid_angle = -90.0f; view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
             }
             while (view->target_yaw - view->start_yaw > PI) {
                 view->target_yaw -= 2.0f * PI;
@@ -276,19 +324,53 @@ static bool handle_editor_options_input(Panel* panel, EditorViewData* view, Font
             if (CheckCollisionPointRec(mouse_pos, option_button)) {
                 if (x == 0) {
                     view->editor_options.show_3D = !view->editor_options.show_3D;
-                    // TODO: swap between orthographic and perspective
-                } else if (x == 1) {
-                    view->editor_options.show_grid = !view->editor_options.show_grid;
-                } else if (x == 2) {
                     view->is_animating = true;
                     view->anim_timer = 0.0f;
                     view->anim_duration = 0.3f;
                     view->start_pos = view->camera.rl_camera.position;
                     view->start_yaw = view->camera.yaw;
                     view->start_pitch = view->camera.pitch;
-                    view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-                    view->target_yaw = -PI * 0.75f;
-                    view->target_pitch = -0.5f;
+                    view->start_grid_angle = view->grid_angle;
+                    if (view->editor_options.show_3D) {
+                        view->active_axis_id = -1;
+                        view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
+                        view->camera.rl_camera.fovy = view->saved_fov;
+                        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+                        view->target_yaw = -PI * 0.75f;
+                        view->target_pitch = -0.5f;
+                        view->target_grid_angle = 0.0f;
+                        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+                    } else {
+                        view->saved_fov = view->camera.rl_camera.fovy;
+                        view->target_pos = (Vec3){view->start_pos.x, 20.0f, view->start_pos.z};
+                        view->target_yaw = PI;
+                        view->target_pitch = -(PI / 2.0f) + 0.001f;
+                        view->target_grid_angle = 0.0f;
+                        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+                    }
+                    while (view->target_yaw - view->start_yaw > PI) {
+                        view->target_yaw -= 2.0f * PI;
+                    }
+                    while (view->target_yaw - view->start_yaw < -PI) {
+                        view->target_yaw += 2.0f * PI;
+                    }
+                } else if (x == 1) {
+                    view->editor_options.show_grid = !view->editor_options.show_grid;
+                } else if (x == 2) {
+                    if (view->editor_options.show_3D == true) {
+                        view->active_axis_id = -1;
+                        view->is_animating = true;
+                        view->anim_timer = 0.0f;
+                        view->anim_duration = 0.3f;
+                        view->start_pos = view->camera.rl_camera.position;
+                        view->start_yaw = view->camera.yaw;
+                        view->start_pitch = view->camera.pitch;
+                        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+                        view->target_yaw = -PI * 0.75f;
+                        view->target_pitch = -0.5f;
+                    } else {
+
+                    }
                 }
                 break;
             }
@@ -304,10 +386,19 @@ static void handle_editor_input(EditorViewData* view, InputManager* input, f32 d
     forward = Vector3Normalize(forward);
     Vec3 right = Vector3CrossProduct(forward, view->camera.rl_camera.up);
     right = Vector3Normalize(right);
-    if (input_is_down(input, ACTION_MOVE_FORWARD))  input_direction = Vector3Add(input_direction, forward);
-    if (input_is_down(input, ACTION_MOVE_BACKWARD)) input_direction = Vector3Subtract(input_direction, forward);
-    if (input_is_down(input, ACTION_MOVE_RIGHT))    input_direction = Vector3Add(input_direction, right);
-    if (input_is_down(input, ACTION_MOVE_LEFT))     input_direction = Vector3Subtract(input_direction, right);
+    if (view->editor_options.show_3D) {
+        if (input_is_down(input, ACTION_MOVE_FORWARD)) input_direction = Vector3Add(input_direction, forward);
+        if (input_is_down(input, ACTION_MOVE_BACKWARD)) input_direction = Vector3Subtract(input_direction, forward);
+        if (input_is_down(input, ACTION_MOVE_RIGHT)) input_direction = Vector3Add(input_direction, right);
+        if (input_is_down(input, ACTION_MOVE_LEFT)) input_direction = Vector3Subtract(input_direction, right);
+    } else {
+        Vec3 up = Vector3CrossProduct(right, forward);
+        up = Vector3Normalize(up);
+        if (input_is_down(input, ACTION_MOVE_FORWARD)) input_direction = Vector3Add(input_direction, up);
+        if (input_is_down(input, ACTION_MOVE_BACKWARD)) input_direction = Vector3Subtract(input_direction, up);
+        if (input_is_down(input, ACTION_MOVE_RIGHT)) input_direction = Vector3Add(input_direction, right);
+        if (input_is_down(input, ACTION_MOVE_LEFT)) input_direction = Vector3Subtract(input_direction, right);
+    }
     if (IsKeyDown(KEY_LEFT_SHIFT)) {
         view->camera_speed = EDITOR_ACCELERATED_FLY_SPEED;
     } else {
@@ -332,22 +423,28 @@ static void editor_view_update(Panel* panel, InputManager* input, bool is_focuse
         if (t >= 1.0f) {
             t = 1.0f;
             view->is_animating = false;
+            if (view->editor_options.show_3D == false) {
+                view->camera.rl_camera.projection = CAMERA_ORTHOGRAPHIC;
+                view->camera.rl_camera.fovy = 20.0f;
+            }
         }
         f32 ease_t = t * t * (3.0f - 2.0f * t);
         view->camera.rl_camera.position = Vector3Lerp(view->start_pos, view->target_pos, ease_t);
         view->camera.yaw = Lerp(view->start_yaw, view->target_yaw, ease_t);
         view->camera.pitch = Lerp(view->start_pitch, view->target_pitch, ease_t);
+        view->grid_angle = Lerp(view->start_grid_angle, view->target_grid_angle, ease_t);
     } else if (is_focused && input_consumed == false) {
         handle_editor_input(view, input, delta_time);
     }
-    camera_update(&view->camera, &view->camera.rl_camera.position, is_focused, delta_time);
+    bool allow_camera_rotation = is_focused && view->editor_options.show_3D;
+    camera_update(&view->camera, &view->camera.rl_camera.position, allow_camera_rotation, delta_time);
 }
 
 static void editor_view_render(Panel* panel) {
     EditorViewData* view = (EditorViewData*)panel->data;
     BeginMode3D(view->camera.rl_camera);
     if (view->editor_options.show_grid) {
-        render_environment_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position);
+        render_world_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position, view->grid_angle, view->grid_axis);
     }
     if (view->player_ref) {
         player_render(view->player_ref);
@@ -377,6 +474,10 @@ Panel* editor_view_create(Player* player_ref, Shader grid_shader, i32 cam_pos_lo
     data->grid_shader = grid_shader;
     data->grid_cam_pos_loc = cam_pos_loc;
     data->is_animating = false;
+    data->grid_angle = 0.0f;
+    data->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+    data->active_axis_id = -1;
+    data->saved_fov = data->camera.rl_camera.fovy;
     data->font = font;
     data->editor_options.show_grid = true;
     data->editor_options.show_3D = true;

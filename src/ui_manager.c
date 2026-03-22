@@ -51,7 +51,7 @@ static void draw_dock_tree(DockNode* node, Font font) {
 }
 
 static void render_global_ui(UIManager* user_interface) {
-    f32 ui_width = user_interface->root->bounds.width;
+    // f32 ui_width = user_interface->root->bounds.width;
     f32 ui_height = user_interface->root->bounds.height;
     const char* fps_text = TextFormat("%i FPS", GetFPS());
     Vec2 text_size = MeasureTextEx(user_interface->font, fps_text, FONT_SIZE, FONT_SPACING);

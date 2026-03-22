@@ -42,7 +42,7 @@ static void game_view_update(Panel* panel, InputManager* input, bool is_focused,
 static void game_view_render(Panel* panel) {
     GameViewData* view = (GameViewData*)panel->data;
     BeginMode3D(view->camera.rl_camera);
-    render_environment_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position);
+    render_world_grid(view->grid_shader, view->grid_cam_pos_loc, view->camera.rl_camera.position, 0.0f, (Vec3){1.0f, 0.0f, 0.0f});
     player_render(view->player_ref);
     EndMode3D();
 }
