@@ -2,11 +2,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <float.h>
+#include <raylib.h>
 #include "../core/graphics_utils.h"
 #include "../viewports/editor_view.h"
 #include "../game_camera.h"
 #include "../core/input_manager.h"
-#include "raylib.h"
+#include "../user interface/ui_node.h"
 
 typedef struct {
     bool show_grid;
@@ -22,20 +23,31 @@ typedef struct {
     Font font;
     // animation state
     bool is_animating;
+
     f32 anim_timer;
     f32 anim_duration;
+
     Vec3 start_pos;
     Vec3 target_pos;
+
     f32 start_yaw;
     f32 start_pitch;
+
     f32 target_yaw;
     f32 target_pitch;
+
     f32 saved_fov;
+
     f32 grid_angle;
     f32 start_grid_angle;
     f32 target_grid_angle;
     Vec3 grid_axis;
     i8 active_axis_id;
+
+    UINode* header_buttons[3];
+    UINode* hovered_node;
+    UINode* pressed_node;
+
     EditorOptions editor_options;
 } EditorViewData;
 
@@ -72,9 +84,9 @@ static const GizmoStyle GIZMO_STYLE = {
 typedef struct {
     f32 height;
     f32 font_size;
-    f32 btn_padding;
-    f32 btn_height;
-    f32 btn_spacing;
+    f32 button_padding;
+    f32 button_height;
+    f32 button_spacing;
     f32 margin_x;
     f32 margin_y;
 } EditorHeaderStyle;
@@ -82,12 +94,69 @@ typedef struct {
 static const EditorHeaderStyle HEADER_STYLE = {
     .height = 35.0f,
     .font_size = 16.0f,
-    .btn_padding = 20.0f,
-    .btn_height = 25.0f,
-    .btn_spacing = 5.0f,
+    .button_padding = 20.0f,
+    .button_height = 25.0f,
+    .button_spacing = 5.0f,
     .margin_x = 5.0f,
     .margin_y = 5.0f
 };
+
+static void on_3d_toggle_clicked(void* data) {
+    EditorViewData* view = (EditorViewData*)data;
+    view->editor_options.show_3D = !view->editor_options.show_3D;
+    view->is_animating = true;
+    view->anim_timer = 0.0f;
+    view->anim_duration = 0.3f;
+    view->start_pos = view->camera.rl_camera.position;
+    view->start_yaw = view->camera.yaw;
+    view->start_pitch = view->camera.pitch;
+    view->start_grid_angle = view->grid_angle;
+
+    if (view->editor_options.show_3D) {
+        view->active_axis_id = -1;
+        view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
+        view->camera.rl_camera.fovy = view->saved_fov;
+        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+        view->target_yaw = -PI * 0.75f;
+        view->target_pitch = -0.5f;
+        view->target_grid_angle = 0.0f;
+        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+    } else {
+        view->saved_fov = view->camera.rl_camera.fovy;
+        view->target_pos = (Vec3){view->start_pos.x, 20.0f, view->start_pos.z};
+        view->target_yaw = PI;
+        view->target_pitch = -(PI / 2.0f) + 0.001f;
+        view->target_grid_angle = 0.0f;
+        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+    }
+    while (view->target_yaw - view->start_yaw > PI) {
+        view->target_yaw -= 2.0f * PI;
+    }
+    while (view->target_yaw - view->start_yaw < -PI) {
+        view->target_yaw += 2.0f * PI;
+    }
+}
+
+static void on_grid_toggle_clicked(void* data) {
+    EditorViewData* view = (EditorViewData*)data;
+    view->editor_options.show_grid = !view->editor_options.show_grid;
+}
+
+static void on_reset_view_clicked(void* data) {
+    EditorViewData* view = (EditorViewData*)data;
+    if (view->editor_options.show_3D == true) {
+        view->active_axis_id = -1;
+        view->is_animating = true;
+        view->anim_timer = 0.0f;
+        view->anim_duration = 0.3f;
+        view->start_pos = view->camera.rl_camera.position;
+        view->start_yaw = view->camera.yaw;
+        view->start_pitch = view->camera.pitch;
+        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+        view->target_yaw = -PI * 0.75f;
+        view->target_pitch = -0.5f;
+    }
+}
 
 static const char* get_header_option_label(EditorViewData* view, u8 index) {
     switch (index) {
@@ -286,98 +355,134 @@ static void draw_editor_view_options(Panel* panel, Font font) {
         (Vec2){panel->bounds.x + panel->bounds.width, panel->bounds.y + HEADER_STYLE.height},
         1.0f, ColorAlpha(WHITE, 0.1f)
     );
-    f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
-    Vec2 mouse_pos = GetMousePosition();
-    u8 option_count = 3;
-    for (u8 x = 0; x < option_count; x++) {
-        const char* label = get_header_option_label(view, x);
-        Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
-        Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.btn_padding, HEADER_STYLE.btn_height};
-        bool is_button_hovered = CheckCollisionPointRec(mouse_pos, option_button);
-        Color bg_color = is_button_hovered ? ColorAlpha(WHITE, 0.4f) : ColorAlpha(WHITE, 0.05f);
-        DrawRectangleRounded(option_button, 0.1f, 4, bg_color);
-        if (is_button_hovered) {
-            DrawRectangleRoundedLines(option_button, 0.1f, 4, ColorAlpha(WHITE, 0.2f));
+    for (u8 x = 0; x < 3; x++) {
+        UINode* button = view->header_buttons[x];
+        Color bg_color = button->is_hovered ? ColorAlpha(WHITE, 0.4f) : ColorAlpha(WHITE, 0.05f);
+        DrawRectangleRounded(button->bounds, 0.1f, 4, bg_color);
+        if (button->is_hovered) {
+            DrawRectangleRoundedLines(button->bounds, 0.1f, 4, ColorAlpha(WHITE, 0.2f));
         }
+        Vec2 text_size = MeasureTextEx(font, button->text, HEADER_STYLE.font_size, 1.0f);
         Vec2 text_pos = {
-            current_x + (HEADER_STYLE.btn_padding / 2.0f),
-            panel->bounds.y + (HEADER_STYLE.height - text_size.y) / 2.0f
+            button->bounds.x + (HEADER_STYLE.button_padding / 2.0f),
+            button->bounds.y + (HEADER_STYLE.height - text_size.y) / 2.0f
         };
-        DrawTextEx(font, label, text_pos, HEADER_STYLE.font_size, 1.0f, is_button_hovered ? WHITE : LIGHTGRAY);
-        current_x += option_button.width + HEADER_STYLE.btn_spacing;
+        DrawTextEx(font, button->text, text_pos, HEADER_STYLE.font_size, 1.0f, button->is_hovered ? WHITE : LIGHTGRAY);
     }
 }
 
-static bool handle_editor_options_input(Panel* panel, EditorViewData* view, Font font) {
+// static bool handle_editor_options_input(Panel* panel, EditorViewData* view, Font font) {
+//     Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
+//     Vec2 mouse_pos = GetMousePosition();
+//     if (CheckCollisionPointRec(mouse_pos, header_rectangle) == false) {
+//         return false;
+//     }
+//     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+//         f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
+//         u8 option_count = 3;
+//         for (u8 x = 0; x < option_count; x++) {
+//             const char* label = get_header_option_label(view, x);
+//             Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
+//             Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.button_padding, HEADER_STYLE.button_height};
+//             if (CheckCollisionPointRec(mouse_pos, option_button)) {
+//                 if (x == 0) {
+//                     view->editor_options.show_3D = !view->editor_options.show_3D;
+//                     view->is_animating = true;
+//                     view->anim_timer = 0.0f;
+//                     view->anim_duration = 0.3f;
+//                     view->start_pos = view->camera.rl_camera.position;
+//                     view->start_yaw = view->camera.yaw;
+//                     view->start_pitch = view->camera.pitch;
+//                     view->start_grid_angle = view->grid_angle;
+//                     if (view->editor_options.show_3D) {
+//                         view->active_axis_id = -1;
+//                         view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
+//                         view->camera.rl_camera.fovy = view->saved_fov;
+//                         view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+//                         view->target_yaw = -PI * 0.75f;
+//                         view->target_pitch = -0.5f;
+//                         view->target_grid_angle = 0.0f;
+//                         view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+//                     } else {
+//                         view->saved_fov = view->camera.rl_camera.fovy;
+//                         view->target_pos = (Vec3){view->start_pos.x, 20.0f, view->start_pos.z};
+//                         view->target_yaw = PI;
+//                         view->target_pitch = -(PI / 2.0f) + 0.001f;
+//                         view->target_grid_angle = 0.0f;
+//                         view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
+//                     }
+//                     while (view->target_yaw - view->start_yaw > PI) {
+//                         view->target_yaw -= 2.0f * PI;
+//                     }
+//                     while (view->target_yaw - view->start_yaw < -PI) {
+//                         view->target_yaw += 2.0f * PI;
+//                     }
+//                 } else if (x == 1) {
+//                     view->editor_options.show_grid = !view->editor_options.show_grid;
+//                 } else if (x == 2) {
+//                     if (view->editor_options.show_3D == true) {
+//                         view->active_axis_id = -1;
+//                         view->is_animating = true;
+//                         view->anim_timer = 0.0f;
+//                         view->anim_duration = 0.3f;
+//                         view->start_pos = view->camera.rl_camera.position;
+//                         view->start_yaw = view->camera.yaw;
+//                         view->start_pitch = view->camera.pitch;
+//                         view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+//                         view->target_yaw = -PI * 0.75f;
+//                         view->target_pitch = -0.5f;
+//                     } else {
+
+//                     }
+//                 }
+//                 break;
+//             }
+//             current_x += option_button.width + HEADER_STYLE.button_spacing;
+//         }
+//     }
+//     return true;
+// }
+
+static bool handle_editor_ui_input(Panel* panel, EditorViewData* view, Font font) {
     Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
     Vec2 mouse_pos = GetMousePosition();
-    if (CheckCollisionPointRec(mouse_pos, header_rectangle) == false) {
-        return false;
+    f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
+    for (u8 x = 0; x < 3; x++) {
+        view->header_buttons[x]->text = get_header_option_label(view, x);
+        Vec2 text_size = MeasureTextEx(font, view->header_buttons[x]->text, HEADER_STYLE.font_size, 1.0f);
+        view->header_buttons[x]->bounds = (Rectangle) {
+            current_x,
+            panel->bounds.y + HEADER_STYLE.margin_y,
+            text_size.x + HEADER_STYLE.button_padding,
+            HEADER_STYLE.button_height
+        };
+        current_x += view->header_buttons[x]->bounds.width + HEADER_STYLE.button_spacing;
     }
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
-        u8 option_count = 3;
-        for (u8 x = 0; x < option_count; x++) {
-            const char* label = get_header_option_label(view, x);
-            Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
-            Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.btn_padding, HEADER_STYLE.btn_height};
-            if (CheckCollisionPointRec(mouse_pos, option_button)) {
-                if (x == 0) {
-                    view->editor_options.show_3D = !view->editor_options.show_3D;
-                    view->is_animating = true;
-                    view->anim_timer = 0.0f;
-                    view->anim_duration = 0.3f;
-                    view->start_pos = view->camera.rl_camera.position;
-                    view->start_yaw = view->camera.yaw;
-                    view->start_pitch = view->camera.pitch;
-                    view->start_grid_angle = view->grid_angle;
-                    if (view->editor_options.show_3D) {
-                        view->active_axis_id = -1;
-                        view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
-                        view->camera.rl_camera.fovy = view->saved_fov;
-                        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-                        view->target_yaw = -PI * 0.75f;
-                        view->target_pitch = -0.5f;
-                        view->target_grid_angle = 0.0f;
-                        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
-                    } else {
-                        view->saved_fov = view->camera.rl_camera.fovy;
-                        view->target_pos = (Vec3){view->start_pos.x, 20.0f, view->start_pos.z};
-                        view->target_yaw = PI;
-                        view->target_pitch = -(PI / 2.0f) + 0.001f;
-                        view->target_grid_angle = 0.0f;
-                        view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
-                    }
-                    while (view->target_yaw - view->start_yaw > PI) {
-                        view->target_yaw -= 2.0f * PI;
-                    }
-                    while (view->target_yaw - view->start_yaw < -PI) {
-                        view->target_yaw += 2.0f * PI;
-                    }
-                } else if (x == 1) {
-                    view->editor_options.show_grid = !view->editor_options.show_grid;
-                } else if (x == 2) {
-                    if (view->editor_options.show_3D == true) {
-                        view->active_axis_id = -1;
-                        view->is_animating = true;
-                        view->anim_timer = 0.0f;
-                        view->anim_duration = 0.3f;
-                        view->start_pos = view->camera.rl_camera.position;
-                        view->start_yaw = view->camera.yaw;
-                        view->start_pitch = view->camera.pitch;
-                        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-                        view->target_yaw = -PI * 0.75f;
-                        view->target_pitch = -0.5f;
-                    } else {
-
-                    }
-                }
+    if (Vector2Length(GetMouseDelta()) > 0.0f) {
+        if (view->hovered_node) {
+            view->hovered_node->is_hovered = false;
+        }
+        view->hovered_node = NULL;
+        for (u8 x = 0; x < 3; x++) {
+            if (CheckCollisionPointRec(mouse_pos, view->header_buttons[x]->bounds)) {
+                view->hovered_node = view->header_buttons[x];
+                view->hovered_node->is_hovered = true;
                 break;
             }
-            current_x += option_button.width + HEADER_STYLE.btn_spacing;
         }
     }
-    return true;
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && view->hovered_node) {
+        view->pressed_node = view->hovered_node;
+        view->pressed_node->is_pressed = true;
+    }
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && view->pressed_node) {
+        if (view->hovered_node == view->pressed_node && view->pressed_node->on_click) {
+            view->pressed_node->on_click(view->pressed_node->user_data);
+        }
+        view->hovered_node->is_pressed = false;
+        view->pressed_node = NULL;
+    }
+    return CheckCollisionPointRec(mouse_pos, header_rectangle);
 }
 
 static void handle_editor_input(EditorViewData* view, InputManager* input, f32 delta_time) {
@@ -413,7 +518,7 @@ static void handle_editor_input(EditorViewData* view, InputManager* input, f32 d
 
 static void editor_view_update(Panel* panel, InputManager* input, bool is_focused, f32 delta_time, Font font) {
     EditorViewData* view = (EditorViewData*)panel->data;
-    bool input_consumed = handle_editor_options_input(panel, view, font);
+    bool input_consumed = handle_editor_ui_input(panel, view, font);
     if (input_consumed == false) {
         handle_world_axes_gizmo_input(panel, view);
     }
@@ -453,6 +558,10 @@ static void editor_view_render(Panel* panel) {
 }
 
 static void editor_view_cleanup(Panel* panel) {
+    EditorViewData* view = (EditorViewData*)panel->data;
+    for (u8 x = 0; x < 3; x++) {
+        free(view->header_buttons[x]);
+    }
     free(panel->data);
     free(panel);
 }
@@ -479,6 +588,18 @@ Panel* editor_view_create(Player* player_ref, Shader grid_shader, i32 cam_pos_lo
     data->active_axis_id = -1;
     data->saved_fov = data->camera.rl_camera.fovy;
     data->font = font;
+
+    data->hovered_node = NULL;
+    data->pressed_node = NULL;
+    for (u8 x = 0; x < 3; x++) {
+        data->header_buttons[x] = (UINode*)calloc(1, sizeof(UINode));
+        data->header_buttons[x]->type = UI_BUTTON;
+        data->header_buttons[x]->user_data = data;
+    }
+    data->header_buttons[0]->on_click = on_3d_toggle_clicked;
+    data->header_buttons[1]->on_click = on_grid_toggle_clicked;
+    data->header_buttons[2]->on_click = on_reset_view_clicked;
+
     data->editor_options.show_grid = true;
     data->editor_options.show_3D = true;
     panel->title = "Scene";
