@@ -1,7 +1,7 @@
 #include <raylib.h>
 
-#include "game_manager.h"
-#include "tools.h"
+#include "core/game_manager.h"
+#include "core/tools.h"
 
 void on_update(GameManager* game_manager) {
     log_msg("running");

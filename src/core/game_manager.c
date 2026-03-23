@@ -2,6 +2,7 @@
 #include <raymath.h>
 #include <rlgl.h>
 
+#include "tools.h"
 #include "game_manager.h"
 
 static void window_init() {

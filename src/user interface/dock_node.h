@@ -20,7 +20,7 @@ struct DockNode {
     DockNode* child_b;     // Right or Bottom
     bool is_dragging;
     // LEAF
-    RenderTexture2D render_target; 
+    RenderTexture2D render_target;
     Panel* tabs[MAX_TABS];
     i32 tab_count;
     i32 active_tab;

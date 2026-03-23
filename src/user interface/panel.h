@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core.h"
-#include "input_manager.h"
+#include "../core/core.h"
+#include "../core/input_manager.h"
 
 typedef struct Panel Panel;
 struct Panel {

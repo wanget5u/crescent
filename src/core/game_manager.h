@@ -1,12 +1,9 @@
 #pragma once
 
 #include "core.h"
-#include "ui_manager.h"
+#include "../user interface/ui_manager.h"
 #include "input_manager.h"
-#include "player.h"
-#include "game_view.h"
-#include "editor_view.h"
-#include "dock_node.h"
+#include "../player.h"
 
 typedef enum {
 	FOCUS_NONE,

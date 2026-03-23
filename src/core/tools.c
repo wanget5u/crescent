@@ -1,3 +1,6 @@
+#include <time.h>
+#include <stdio.h>
+
 #include "tools.h"
 
 #define COLOR_RESET  "\x1b[0m"

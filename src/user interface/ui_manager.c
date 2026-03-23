@@ -1,8 +1,6 @@
 #include "ui_manager.h"
-#include "core.h"
-#include "game_view.h"
-#include "editor_view.h"
-#include "raylib.h"
+#include "../viewports/game_view.h"
+#include "../viewports/editor_view.h"
 
 static void draw_leaf_tabs(DockNode* node, Font font) {
     f32 tab_height = 35.0f;
@@ -91,6 +89,8 @@ void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shad
     user_interface->focused_leaf = root_leaf;
     user_interface->dragging_tab = NULL;
     user_interface->hover_target = NULL;
+    user_interface->currently_hovered = NULL;
+    user_interface->currently_pressed = NULL;
     ui_manager_resize(user_interface, BASE_SCREEN_WIDTH, BASE_SCREEN_HEIGHT);
 }
 

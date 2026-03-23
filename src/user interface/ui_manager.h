@@ -1,9 +1,10 @@
 #pragma once
 
-#include "core.h"
+#include "../core/core.h"
+#include "../core/input_manager.h"
+#include "../player.h"
 #include "dock_node.h"
-#include "input_manager.h"
-#include "player.h"
+#include "ui_node.h"
 
 typedef enum {
     DROP_NONE,
@@ -25,6 +26,9 @@ typedef struct {
     DockNode* hover_target;
     DropZone current_drop_zone;
     Rectangle drop_preview_rectangle;
+
+    UINode* currently_hovered;
+    UINode* currently_pressed;
 } UIManager;
 
 void ui_manager_init(UIManager* user_interface, Player* player, Shader grid_shader, i32 grid_cam_pos);

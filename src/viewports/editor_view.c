@@ -2,10 +2,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <float.h>
-#include "graphics_utils.h"
-#include "editor_view.h"
-#include "game_camera.h"
-#include "input_manager.h"
+#include "../core/graphics_utils.h"
+#include "../viewports/editor_view.h"
+#include "../game_camera.h"
+#include "../core/input_manager.h"
 #include "raylib.h"
 
 typedef struct {

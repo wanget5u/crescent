@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <raylib.h>
 #include <raymath.h>
-#include <stdio.h>
-#include <time.h>
-
-#include "tools.h"
 
 // standard aliases
 typedef int8_t i8;

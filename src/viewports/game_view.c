@@ -1,8 +1,8 @@
 #include <stdlib.h>
-#include "core.h"
-#include "graphics_utils.h"
+#include "../core/core.h"
+#include "../core/graphics_utils.h"
 #include "game_view.h"
-#include "game_camera.h"
+#include "../game_camera.h"
 #include "raylib.h"
 
 typedef struct {
