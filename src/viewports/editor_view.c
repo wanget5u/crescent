@@ -116,7 +116,7 @@ static void on_3d_toggle_clicked(void* data) {
         view->active_axis_id = -1;
         view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
         view->camera.rl_camera.fovy = view->saved_fov;
-        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
+        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f}; // TODO: change this
         view->target_yaw = -PI * 0.75f;
         view->target_pitch = -0.5f;
         view->target_grid_angle = 0.0f;
@@ -142,27 +142,10 @@ static void on_grid_toggle_clicked(void* data) {
     view->editor_options.show_grid = !view->editor_options.show_grid;
 }
 
-static void on_reset_view_clicked(void* data) {
-    EditorViewData* view = (EditorViewData*)data;
-    if (view->editor_options.show_3D == true) {
-        view->active_axis_id = -1;
-        view->is_animating = true;
-        view->anim_timer = 0.0f;
-        view->anim_duration = 0.3f;
-        view->start_pos = view->camera.rl_camera.position;
-        view->start_yaw = view->camera.yaw;
-        view->start_pitch = view->camera.pitch;
-        view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-        view->target_yaw = -PI * 0.75f;
-        view->target_pitch = -0.5f;
-    }
-}
-
 static const char* get_header_option_label(EditorViewData* view, u8 index) {
     switch (index) {
         case 0: return view->editor_options.show_3D ? "3D" : "2D";
         case 1: return view->editor_options.show_grid ? "Hide Grid" : "Show Grid";
-        case 2: return "Reset View";
         default: return "";
     }
 }
@@ -355,7 +338,7 @@ static void draw_editor_view_options(Panel* panel, Font font) {
         (Vec2){panel->bounds.x + panel->bounds.width, panel->bounds.y + HEADER_STYLE.height},
         1.0f, ColorAlpha(WHITE, 0.1f)
     );
-    for (u8 x = 0; x < 3; x++) {
+    for (u8 x = 0; x < 2; x++) {
         UINode* button = view->header_buttons[x];
         Color bg_color = button->is_hovered ? ColorAlpha(WHITE, 0.4f) : ColorAlpha(WHITE, 0.05f);
         DrawRectangleRounded(button->bounds, 0.1f, 4, bg_color);
@@ -370,78 +353,6 @@ static void draw_editor_view_options(Panel* panel, Font font) {
         DrawTextEx(font, button->text, text_pos, HEADER_STYLE.font_size, 1.0f, button->is_hovered ? WHITE : LIGHTGRAY);
     }
 }
-
-// static bool handle_editor_options_input(Panel* panel, EditorViewData* view, Font font) {
-//     Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
-//     Vec2 mouse_pos = GetMousePosition();
-//     if (CheckCollisionPointRec(mouse_pos, header_rectangle) == false) {
-//         return false;
-//     }
-//     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-//         f32 current_x = panel->bounds.x + HEADER_STYLE.margin_x;
-//         u8 option_count = 3;
-//         for (u8 x = 0; x < option_count; x++) {
-//             const char* label = get_header_option_label(view, x);
-//             Vec2 text_size = MeasureTextEx(font, label, HEADER_STYLE.font_size, 1.0f);
-//             Rectangle option_button = {current_x, panel->bounds.y + HEADER_STYLE.margin_y, text_size.x + HEADER_STYLE.button_padding, HEADER_STYLE.button_height};
-//             if (CheckCollisionPointRec(mouse_pos, option_button)) {
-//                 if (x == 0) {
-//                     view->editor_options.show_3D = !view->editor_options.show_3D;
-//                     view->is_animating = true;
-//                     view->anim_timer = 0.0f;
-//                     view->anim_duration = 0.3f;
-//                     view->start_pos = view->camera.rl_camera.position;
-//                     view->start_yaw = view->camera.yaw;
-//                     view->start_pitch = view->camera.pitch;
-//                     view->start_grid_angle = view->grid_angle;
-//                     if (view->editor_options.show_3D) {
-//                         view->active_axis_id = -1;
-//                         view->camera.rl_camera.projection = CAMERA_PERSPECTIVE;
-//                         view->camera.rl_camera.fovy = view->saved_fov;
-//                         view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-//                         view->target_yaw = -PI * 0.75f;
-//                         view->target_pitch = -0.5f;
-//                         view->target_grid_angle = 0.0f;
-//                         view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
-//                     } else {
-//                         view->saved_fov = view->camera.rl_camera.fovy;
-//                         view->target_pos = (Vec3){view->start_pos.x, 20.0f, view->start_pos.z};
-//                         view->target_yaw = PI;
-//                         view->target_pitch = -(PI / 2.0f) + 0.001f;
-//                         view->target_grid_angle = 0.0f;
-//                         view->grid_axis = (Vec3){1.0f, 0.0f, 0.0f};
-//                     }
-//                     while (view->target_yaw - view->start_yaw > PI) {
-//                         view->target_yaw -= 2.0f * PI;
-//                     }
-//                     while (view->target_yaw - view->start_yaw < -PI) {
-//                         view->target_yaw += 2.0f * PI;
-//                     }
-//                 } else if (x == 1) {
-//                     view->editor_options.show_grid = !view->editor_options.show_grid;
-//                 } else if (x == 2) {
-//                     if (view->editor_options.show_3D == true) {
-//                         view->active_axis_id = -1;
-//                         view->is_animating = true;
-//                         view->anim_timer = 0.0f;
-//                         view->anim_duration = 0.3f;
-//                         view->start_pos = view->camera.rl_camera.position;
-//                         view->start_yaw = view->camera.yaw;
-//                         view->start_pitch = view->camera.pitch;
-//                         view->target_pos = (Vec3){5.0f, 10.0f, 5.0f};
-//                         view->target_yaw = -PI * 0.75f;
-//                         view->target_pitch = -0.5f;
-//                     } else {
-
-//                     }
-//                 }
-//                 break;
-//             }
-//             current_x += option_button.width + HEADER_STYLE.button_spacing;
-//         }
-//     }
-//     return true;
-// }
 
 static bool handle_editor_ui_input(Panel* panel, EditorViewData* view, Font font) {
     Rectangle header_rectangle = {panel->bounds.x, panel->bounds.y, panel->bounds.width, HEADER_STYLE.height};
@@ -598,7 +509,6 @@ Panel* editor_view_create(Player* player_ref, Shader grid_shader, i32 cam_pos_lo
     }
     data->header_buttons[0]->on_click = on_3d_toggle_clicked;
     data->header_buttons[1]->on_click = on_grid_toggle_clicked;
-    data->header_buttons[2]->on_click = on_reset_view_clicked;
 
     data->editor_options.show_grid = true;
     data->editor_options.show_3D = true;
